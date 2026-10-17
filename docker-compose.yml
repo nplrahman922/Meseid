@@ -1,0 +1,117 @@
+# Meseid - docker-compose.yml
+# Service: postgres (database), api (Bun + Elysia), bot (Node + Hono + Baileys/grammY), web (SvelteKit statis + Nginx)
+#
+# Pemakaian:
+#   cp .env.example .env            # lalu isi nilainya
+#   docker compose up -d --build    # jalankan semua
+#   docker compose logs -f api      # lihat log satu service
+#   docker stats                    # pantau memory per container
+
+# Batasi ukuran log agar disk server kecil tidak penuh
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------
+  # DATABASE
+  # ---------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Pengaturan awal untuk RAM kecil (server 4 GB). Sesuaikan setelah diukur.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=50
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Opsional: init script sekali jalan (ekstensi, role). Hapus baris ini jika folder db/init tidak dipakai.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    # Dibuka hanya ke localhost agar migrasi/seed dari laptop bisa jalan.
+    # HAPUS baris ports ini di server produksi.
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---------------------------------------------------------------
+  # API (Bun + Elysia.js) - satu-satunya yang menyentuh data bisnis
+  # ---------------------------------------------------------------
+  api:
+    build: ./apps/api
+    init: true
+    env_file: .env
+    environment:
+      # Di dalam Docker, host database adalah nama service "postgres", bukan localhost
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Alamat bot di jaringan internal (untuk mengirim pesan/pengingat)
+      BOT_INTERNAL_URL: http://bot:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Dibuka ke localhost untuk debugging. HAPUS di produksi (web sudah meneruskan /api ke sini).
+    ports:
+      - "127.0.0.1:3000:3000"
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---------------------------------------------------------------
+  # BOT (Node.js + Hono + Baileys + grammY) - gerbang kanal yang tipis
+  # ---------------------------------------------------------------
+  bot:
+    build: ./apps/bot
+    init: true
+    # Sengaja TIDAK memakai env_file: bot hanya menerima variabel yang dibutuhkannya
+    environment:
+      API_INTERNAL_URL: http://api:3000
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_MODE: ${TELEGRAM_MODE:-polling}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      WA_SESSION_PATH: /data/wa-session
+    volumes:
+      # Sesi Baileys disimpan di volume terpisah agar tidak ikut hilang saat database di-reset
+      - wa-session:/data/wa-session
+    depends_on:
+      api:
+        condition: service_healthy
+    # Tidak ada ports: bot hanya dijangkau API lewat jaringan internal Docker (http://bot:3001)
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---------------------------------------------------------------
+  # WEB (SvelteKit statis + Nginx) - pintu masuk dan reverse proxy ke API
+  # ---------------------------------------------------------------
+  web:
+    build: ./apps/web
+    ports:
+      - "${WEB_PORT:-8080}:80"        # di VPS produksi: "80:80" atau di belakang reverse proxy HTTPS
+    depends_on:
+      - api
+    mem_limit: 64m
+    restart: unless-stopped
+    logging: *default-logging
+
+volumes:
+  # Diberi nama tetap supaya mudah dihapus satu per satu tanpa memakai `down -v`
+  pgdata:
+    name: meseid_pgdata
+  wa-session:
+    name: meseid_wa_session
