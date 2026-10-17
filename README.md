@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="apps/public/Logo.png" alt="Meseid Logo" width="64" />
+<img src="apps/public/logo_polos.png" alt="Meseid Logo" width="200" />
 
 # Meseid
 
