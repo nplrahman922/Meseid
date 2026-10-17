@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="apps/public/Logo.png" alt="Meseid Logo" width="64" />
+
 # Meseid
 
 **Asisten bisnis AI di WhatsApp dan Telegram untuk UMKM.**
