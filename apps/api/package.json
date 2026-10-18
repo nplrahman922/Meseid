@@ -2,11 +2,16 @@
   "name": "api",
   "version": "1.0.50",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun run --watch src/index.ts"
+    "test": "bun test",
+    "dev": "bun run --watch src/index.ts",
+    "db:migrate": "bun run src/db/migrate.ts",
+    "db:seed": "bun run src/db/seed.ts",
+    "db:reset": "bun run src/db/reset.ts",
+    "docs:generate": "bun run scripts/generate_docs.ts"
   },
   "dependencies": {
-    "elysia": "latest"
+    "elysia": "latest",
+    "postgres": "^3.4.9"
   },
   "devDependencies": {
     "bun-types": "latest"
