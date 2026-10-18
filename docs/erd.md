@@ -11,10 +11,12 @@ erDiagram
     owners ||--o{ bookings : "owner_id"
     schedules ||--o{ bookings : "schedule_id"
     owners ||--o{ bot_configs : "owner_id"
+    ai_models ||--o{ bot_configs : "selected_model_id"
     jurnal_baris ||--o{ buku_pembantu : "journal_line_id"
     owners ||--o{ buku_pembantu : "owner_id"
     parties ||--o{ buku_pembantu : "party_id"
     owners ||--o{ channel_connections : "owner_id"
+    owners ||--o{ channel_link_codes : "owner_id"
     owners ||--o{ chat_logs : "owner_id"
     users ||--o{ document_versions : "created_by"
     documents ||--o{ document_versions : "document_id"
@@ -119,7 +121,15 @@ erDiagram
     bot_configs {
         uuid id PK
         uuid owner_id FK
+        text assistant_bot_name
+        text assistant_persona_prompt  "nullable"
+        text admin_bot_name
+        text admin_persona_prompt  "nullable"
         text persona_prompt  "nullable"
+        text selected_model_id FK "nullable"
+        text customer_access_mode
+        jsonb allowed_contacts
+        jsonb allowed_groups
         bool auto_reply_enabled
         jsonb business_hours
         timestamptz created_at
@@ -146,8 +156,20 @@ erDiagram
         text external_account_id FK
         text status
         text session_ref  "nullable"
+        bytea credentials_enc  "nullable"
         timestamptz created_at
         timestamptz updated_at
+    }
+
+    channel_link_codes {
+        uuid id PK
+        uuid owner_id FK
+        text channel
+        text target_external_id FK
+        text code_hash
+        timestamptz expires_at
+        timestamptz used_at  "nullable"
+        timestamptz created_at
     }
 
     chat_logs {
@@ -451,7 +473,7 @@ erDiagram
 
 ## Table & Column Catalog
 
-Total Registered Tables: **35**
+Total Registered Tables: **36**
 
 ### Table: `accounts`
 - **RLS Enabled:** `true` | **RLS Forced:** `true`
@@ -550,7 +572,15 @@ Total Registered Tables: **35**
 | :--- | :--- | :--- | :--- |
 | `id` | `uuid` | `NO` | `gen_random_uuid()` |
 | `owner_id` | `uuid` | `NO` | _none_ |
+| `assistant_bot_name` | `text` | `NO` | `'Asisten Bisnis'::text` |
+| `assistant_persona_prompt` | `text` | `YES` | _none_ |
+| `admin_bot_name` | `text` | `NO` | `'Admin Toko'::text` |
+| `admin_persona_prompt` | `text` | `YES` | _none_ |
 | `persona_prompt` | `text` | `YES` | _none_ |
+| `selected_model_id` | `text` | `YES` | _none_ |
+| `customer_access_mode` | `text` | `NO` | `'open'::text` |
+| `allowed_contacts` | `jsonb` | `NO` | `'[]'::jsonb` |
+| `allowed_groups` | `jsonb` | `NO` | `'[]'::jsonb` |
 | `auto_reply_enabled` | `bool` | `NO` | `true` |
 | `business_hours` | `jsonb` | `NO` | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | `NO` | `now()` |
@@ -583,8 +613,23 @@ Total Registered Tables: **35**
 | `external_account_id` | `text` | `NO` | _none_ |
 | `status` | `text` | `NO` | `'connected'::text` |
 | `session_ref` | `text` | `YES` | _none_ |
+| `credentials_enc` | `bytea` | `YES` | _none_ |
 | `created_at` | `timestamptz` | `NO` | `now()` |
 | `updated_at` | `timestamptz` | `NO` | `now()` |
+
+### Table: `channel_link_codes`
+- **RLS Enabled:** `true` | **RLS Forced:** `true`
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | `NO` | `gen_random_uuid()` |
+| `owner_id` | `uuid` | `NO` | _none_ |
+| `channel` | `text` | `NO` | _none_ |
+| `target_external_id` | `text` | `NO` | _none_ |
+| `code_hash` | `text` | `NO` | _none_ |
+| `expires_at` | `timestamptz` | `NO` | `(now() + '00:10:00'::interval)` |
+| `used_at` | `timestamptz` | `YES` | _none_ |
+| `created_at` | `timestamptz` | `NO` | `now()` |
 
 ### Table: `chat_logs`
 - **RLS Enabled:** `true` | **RLS Forced:** `true`

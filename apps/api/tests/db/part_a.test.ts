@@ -107,13 +107,14 @@ describe("Part A: Database Tenancy, Roles, RLS & Identity Foundation", () => {
           UPDATE owners SET business_name = 'Hacked Name' WHERE id = ${ownerB.id};
         `;
         expect(updateResult.count).toBe(0);
-
-        // DELETE
-        const deleteResult = await tx`
-          DELETE FROM owners WHERE id = ${ownerB.id};
-        `;
-        expect(deleteResult.count).toBe(0);
       });
+
+      // Direct DELETE on owners is completely forbidden for owner_ctx
+      await expect(
+        withOwnerContext(ownerA.id, userA.id, async (tx) => {
+          await tx`DELETE FROM owners WHERE id = ${ownerB.id};`;
+        })
+      ).rejects.toThrow(/permission denied for table owners/i);
 
       // Verify Owner B data is unaltered
       const [ownerBCheck] = await adminSql<OwnerRow[]>`

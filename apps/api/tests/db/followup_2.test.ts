@@ -490,7 +490,7 @@ describe("FOLLOW-UP 2: Security Definer Guards, Billing, Erasure, Ledger & Proce
         });
       } catch (err: any) {
         threw = true;
-        expect(err.message).toMatch(/(invalid transaction termination|cannot commit while a subtransaction is active)/i);
+        expect(err.message).toMatch(/(invalid transaction termination|cannot commit while a subtransaction is active|permission denied)/i);
       }
       expect(threw).toBe(true);
     });

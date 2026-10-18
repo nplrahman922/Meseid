@@ -39,7 +39,19 @@ CREATE TABLE IF NOT EXISTS unanswered_questions (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- 4. Apply Boilerplate Defaults
+-- 4. Channel Link Codes (Account Linking OTP - SRS FR-31)
+CREATE TABLE IF NOT EXISTS channel_link_codes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id uuid NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  channel text NOT NULL CHECK (channel IN ('whatsapp', 'telegram')),
+  target_external_id text NOT NULL,
+  code_hash text NOT NULL,
+  expires_at timestamptz NOT NULL DEFAULT (now() + interval '10 minutes'),
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- 5. Apply Boilerplate Defaults
 DO $$
 DECLARE
   t regclass;
@@ -47,21 +59,23 @@ BEGIN
   FOR t IN SELECT unnest(ARRAY[
     'inbound_messages'::regclass,
     'chat_logs'::regclass,
-    'unanswered_questions'::regclass
+    'unanswered_questions'::regclass,
+    'channel_link_codes'::regclass
   ]) LOOP
     CALL util_apply_tenant_defaults(t);
   END LOOP;
 END;
 $$;
 
--- 5. Policies & Grants
+-- 6. Policies & Grants
 DO $$
 DECLARE
   t regclass;
 BEGIN
   FOR t IN SELECT unnest(ARRAY[
     'chat_logs'::regclass,
-    'unanswered_questions'::regclass
+    'unanswered_questions'::regclass,
+    'channel_link_codes'::regclass
   ]) LOOP
     CALL util_create_owner_policy(t);
   END LOOP;
@@ -93,8 +107,16 @@ CREATE POLICY system_ctx_unanswered_questions ON unanswered_questions
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS system_ctx_channel_link_codes ON channel_link_codes;
+CREATE POLICY system_ctx_channel_link_codes ON channel_link_codes
+  FOR ALL TO meseid_system_ctx
+  USING (true)
+  WITH CHECK (true);
+
 -- Grants
 GRANT SELECT ON chat_logs, unanswered_questions, inbound_messages TO meseid_owner_ctx;
 GRANT UPDATE, DELETE ON unanswered_questions TO meseid_owner_ctx;
+GRANT SELECT, INSERT, UPDATE, DELETE ON channel_link_codes TO meseid_owner_ctx;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON inbound_messages, chat_logs, unanswered_questions TO meseid_system_ctx;
+GRANT SELECT, UPDATE ON channel_link_codes TO meseid_system_ctx;

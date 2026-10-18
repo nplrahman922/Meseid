@@ -24,6 +24,19 @@ VALUES
   ('openai', 'gpt-4o', 'pro', 'IDR', true, 38.0000, 150.0000)
 ON CONFLICT (model_id) DO NOTHING;
 
+-- Link bot_configs.selected_model_id to ai_models
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'fk_bot_configs_selected_model'
+  ) THEN
+    ALTER TABLE bot_configs
+      ADD CONSTRAINT fk_bot_configs_selected_model
+      FOREIGN KEY (selected_model_id) REFERENCES ai_models(model_id) ON DELETE SET NULL;
+  END IF;
+END;
+$$;
+
 -- 2. Token Usage Logs (No raw user prompt or response content stored)
 CREATE TABLE IF NOT EXISTS token_usage_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -90,8 +103,25 @@ $$;
 
 -- 5. Policies & Grants
 DROP POLICY IF EXISTS ai_models_select_public ON ai_models;
-CREATE POLICY ai_models_select_public ON ai_models FOR SELECT TO PUBLIC USING (true);
-GRANT SELECT ON ai_models TO PUBLIC;
+DROP POLICY IF EXISTS ai_models_select_all ON ai_models;
+CREATE POLICY ai_models_select_all ON ai_models
+  FOR SELECT TO meseid_owner_ctx, meseid_admin_ctx, meseid_system_ctx
+  USING (true);
+
+DROP POLICY IF EXISTS ai_models_admin_all ON ai_models;
+CREATE POLICY ai_models_admin_all ON ai_models
+  FOR ALL TO meseid_admin_ctx
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS ai_models_system_all ON ai_models;
+CREATE POLICY ai_models_system_all ON ai_models
+  FOR ALL TO meseid_system_ctx
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT ON ai_models TO meseid_owner_ctx, meseid_admin_ctx, meseid_system_ctx;
+GRANT INSERT, UPDATE, DELETE ON ai_models TO meseid_admin_ctx, meseid_system_ctx;
 
 CALL util_create_owner_policy('token_usage_logs'::regclass);
 
@@ -102,4 +132,4 @@ CREATE POLICY system_ctx_token_usage_logs ON token_usage_logs
   WITH CHECK (true);
 
 GRANT SELECT ON token_usage_logs TO meseid_owner_ctx;
-GRANT SELECT, INSERT, UPDATE, DELETE ON token_usage_logs TO meseid_system_ctx;
+GRANT SELECT, INSERT ON token_usage_logs TO meseid_system_ctx;

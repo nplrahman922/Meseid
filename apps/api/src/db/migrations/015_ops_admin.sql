@@ -211,7 +211,10 @@ GRANT SELECT ON system_logs TO meseid_admin_ctx;
 GRANT SELECT, INSERT, UPDATE, DELETE ON alerts TO meseid_admin_ctx;
 GRANT SELECT, INSERT ON admin_audit_log TO meseid_admin_ctx;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON system_logs, alerts TO meseid_system_ctx;
+GRANT SELECT, INSERT ON system_logs TO meseid_system_ctx;
+GRANT SELECT, INSERT, UPDATE, DELETE ON alerts TO meseid_system_ctx;
+
+GRANT EXECUTE ON PROCEDURE sp_purge_old_logs(integer), sp_expire_pending_actions() TO meseid_system_ctx, meseid_admin_ctx;
 
 REVOKE ALL ON FUNCTION fn_suspend_owner(uuid, text) FROM PUBLIC, meseid_app;
 GRANT EXECUTE ON FUNCTION fn_suspend_owner(uuid, text) TO meseid_admin_ctx;

@@ -219,7 +219,10 @@ AS $$
 DECLARE
   v_action RECORD;
   v_journal_id uuid;
+  v_caller_role text;
 BEGIN
+  v_caller_role := COALESCE(NULLIF(current_setting('role', true), 'none'), current_user);
+
   SELECT * INTO v_action
   FROM pending_actions
   WHERE id = p_action_id
@@ -230,7 +233,7 @@ BEGIN
   END IF;
 
   -- Caller Guard
-  IF current_user = 'meseid_owner_ctx' AND v_action.owner_id IS DISTINCT FROM app_owner_id() THEN
+  IF v_caller_role = 'meseid_owner_ctx' AND v_action.owner_id IS DISTINCT FROM app_owner_id() THEN
     RAISE EXCEPTION 'Access denied: caller does not match owner_id';
   END IF;
 

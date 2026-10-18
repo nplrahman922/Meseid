@@ -77,9 +77,7 @@ CREATE POLICY system_ctx_knowledge_base ON knowledge_base
   FOR SELECT TO meseid_system_ctx
   USING (true);
 
--- 6. Role Table Grants
-GRANT SELECT, UPDATE ON users TO meseid_owner_ctx;
-GRANT SELECT, UPDATE, DELETE ON owners TO meseid_owner_ctx;
+GRANT SELECT, UPDATE ON users, owners TO meseid_owner_ctx;
 GRANT SELECT, INSERT, UPDATE, DELETE ON google_connections, channel_connections, bot_configs, knowledge_base TO meseid_owner_ctx;
 
 GRANT SELECT ON users, owners TO meseid_admin_ctx;

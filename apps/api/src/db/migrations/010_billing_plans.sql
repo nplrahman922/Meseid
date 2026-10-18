@@ -196,4 +196,5 @@ GRANT SELECT ON plans, plan_prices, topup_packages, subscriptions, payment_histo
 
 GRANT SELECT ON plans, plan_prices, topup_packages, subscriptions, payment_history TO meseid_admin_ctx;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON plans, plan_prices, topup_packages, subscriptions, quota_counters, token_topups, payment_history TO meseid_system_ctx;
+GRANT SELECT, INSERT, UPDATE, DELETE ON plans, plan_prices, topup_packages, subscriptions, quota_counters, token_topups TO meseid_system_ctx;
+GRANT SELECT, INSERT, UPDATE ON payment_history TO meseid_system_ctx;

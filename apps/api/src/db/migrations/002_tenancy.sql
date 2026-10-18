@@ -48,16 +48,25 @@ CREATE TABLE IF NOT EXISTS channel_connections (
   external_account_id text NOT NULL,
   status text NOT NULL DEFAULT 'connected' CHECK (status IN ('connected', 'disconnected', 'error')),
   session_ref text,
+  credentials_enc bytea,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT uq_channel_account UNIQUE (channel, external_account_id)
 );
 
--- 5. Bot Configs
+-- 5. Bot Configs (SRS Dual-Persona, AI Model Selection, Group Access, & Whitelist)
 CREATE TABLE IF NOT EXISTS bot_configs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id uuid NOT NULL UNIQUE REFERENCES owners(id) ON DELETE CASCADE,
+  assistant_bot_name text NOT NULL DEFAULT 'Asisten Bisnis',
+  assistant_persona_prompt text,
+  admin_bot_name text NOT NULL DEFAULT 'Admin Toko',
+  admin_persona_prompt text,
   persona_prompt text,
+  selected_model_id text,
+  customer_access_mode text NOT NULL DEFAULT 'open' CHECK (customer_access_mode IN ('open', 'whitelist')),
+  allowed_contacts jsonb NOT NULL DEFAULT '[]'::jsonb,
+  allowed_groups jsonb NOT NULL DEFAULT '[]'::jsonb,
   auto_reply_enabled boolean NOT NULL DEFAULT true,
   business_hours jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),

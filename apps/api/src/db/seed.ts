@@ -126,12 +126,18 @@ export async function runSeed() {
       VALUES (${SEED_IDS.OWNER_A_ID}, ${SEED_IDS.OWNER_A_USER}, 'Warkop Nusantara', 'kuliner', 'Asia/Jakarta', 'active');
     `;
 
-    // Channel connections for Owner A: WhatsApp + Telegram
+    // Channel connections for Owner A: WhatsApp + Telegram with encrypted credentials
     await tx`
-      INSERT INTO channel_connections (owner_id, channel, external_account_id, status, session_ref)
+      INSERT INTO channel_connections (owner_id, channel, external_account_id, status, session_ref, credentials_enc)
       VALUES 
-        (${SEED_IDS.OWNER_A_ID}, 'whatsapp', '6281234567890', 'connected', 'session_wa_warkop_001'),
-        (${SEED_IDS.OWNER_A_ID}, 'telegram', '123456789', 'connected', 'session_tg_warkop_001');
+        (${SEED_IDS.OWNER_A_ID}, 'whatsapp', '6281234567890', 'connected', 'session_wa_warkop_001', decode('aabbccddeeff00112233445566778899', 'hex')),
+        (${SEED_IDS.OWNER_A_ID}, 'telegram', '123456789', 'connected', 'session_tg_warkop_001', decode('11223344556677889900aabbccddeeff', 'hex'));
+    `;
+
+    // Channel link code for Owner A (SRS FR-31)
+    await tx`
+      INSERT INTO channel_link_codes (owner_id, channel, target_external_id, code_hash, expires_at)
+      VALUES (${SEED_IDS.OWNER_A_ID}, 'whatsapp', '6281234567890', 'hash_otp_123456', now() + interval '10 minutes');
     `;
 
     // Google Connected with FAKE Encrypted Placeholders
@@ -151,12 +157,29 @@ export async function runSeed() {
       );
     `;
 
-    // Bot Config for Owner A
+    // Bot Config for Owner A (Dual-Persona & Whitelist aligned with SRS)
     await tx`
-      INSERT INTO bot_configs (owner_id, persona_prompt, auto_reply_enabled, business_hours)
+      INSERT INTO bot_configs (
+        owner_id, 
+        assistant_bot_name, 
+        assistant_persona_prompt,
+        admin_bot_name,
+        admin_persona_prompt,
+        persona_prompt, 
+        selected_model_id,
+        customer_access_mode,
+        auto_reply_enabled, 
+        business_hours
+      )
       VALUES (
         ${SEED_IDS.OWNER_A_ID},
+        'Asisten Bisnis Warkop',
+        'Kamu adalah asisten internal pemilik bisnis Warkop Nusantara untuk pembukuan dan stok.',
+        'Admin Toko Warkop',
+        'Kamu adalah asisten ramah Warkop Nusantara yang melayani pesanan pelanggan.',
         'Kamu adalah asisten ramah Warkop Nusantara yang melayani pesanan kopi dan makanan ringan.',
+        'gemini-1.5-flash',
+        'open',
         true,
         '{"monday": {"open": "08:00", "close": "22:00"}, "sunday": {"open": "09:00", "close": "23:00"}}'::jsonb
       );
@@ -485,17 +508,34 @@ export async function runSeed() {
     `;
 
     await tx`
-      INSERT INTO channel_connections (owner_id, channel, external_account_id, status, session_ref)
+      INSERT INTO channel_connections (owner_id, channel, external_account_id, status, session_ref, credentials_enc)
       VALUES 
-        (${SEED_IDS.OWNER_B_ID}, 'whatsapp', '6289876543210', 'connected', 'session_wa_berkah_002'),
-        (${SEED_IDS.OWNER_B_ID}, 'telegram', '987654321', 'connected', 'session_tg_berkah_002');
+        (${SEED_IDS.OWNER_B_ID}, 'whatsapp', '6289876543210', 'connected', 'session_wa_berkah_002', decode('1234567890abcdef1234567890abcdef', 'hex')),
+        (${SEED_IDS.OWNER_B_ID}, 'telegram', '987654321', 'connected', 'session_tg_berkah_002', decode('abcdef1234567890abcdef1234567890', 'hex'));
     `;
 
     await tx`
-      INSERT INTO bot_configs (owner_id, persona_prompt, auto_reply_enabled, business_hours)
+      INSERT INTO bot_configs (
+        owner_id, 
+        assistant_bot_name, 
+        assistant_persona_prompt,
+        admin_bot_name,
+        admin_persona_prompt,
+        persona_prompt, 
+        selected_model_id,
+        customer_access_mode,
+        auto_reply_enabled, 
+        business_hours
+      )
       VALUES (
         ${SEED_IDS.OWNER_B_ID},
+        'Asisten Toko Berkah',
+        'Kamu adalah asisten internal pemilik Toko Berkah Jaya.',
+        'Admin Toko Berkah',
+        'Kamu adalah asisten Toko Berkah Jaya yang siap membantu pelanggan mengecek ketersediaan sembako.',
         'Kamu adalah asisten Toko Berkah Jaya yang siap membantu pengecekan ketersediaan dan harga sembako.',
+        'gemini-1.5-flash',
+        'open',
         true,
         '{"monday": {"open": "07:00", "close": "21:00"}}'::jsonb
       );

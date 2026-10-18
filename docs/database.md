@@ -89,13 +89,14 @@ The following matrix documents table RLS enforcement and live PostgreSQL role pr
 | :--- | :--- | :--- | :--- | :--- |
 | **accounts** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | **DENIED** |
 | **admin_audit_log** | Enabled & Forced | **DENIED** | INSERT, SELECT | **DENIED** |
-| **ai_models** | Enabled & Forced | **DENIED** | **DENIED** | **DENIED** |
+| **ai_models** | Enabled & Forced | SELECT | DELETE, INSERT, SELECT, UPDATE | DELETE, INSERT, SELECT, UPDATE |
 | **alerts** | Enabled & Forced | **DENIED** | DELETE, INSERT, SELECT, UPDATE | DELETE, INSERT, SELECT, UPDATE |
 | **audit_log** | Enabled & Forced | SELECT | SELECT | **DENIED** |
 | **bookings** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | DELETE, INSERT, SELECT, UPDATE |
 | **bot_configs** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | SELECT |
 | **buku_pembantu** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | **DENIED** |
 | **channel_connections** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | SELECT |
+| **channel_link_codes** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | SELECT, UPDATE |
 | **chat_logs** | Enabled & Forced | SELECT | **DENIED** | DELETE, INSERT, SELECT, UPDATE |
 | **default_accounts_template** | Disabled | **DENIED** | **DENIED** | **DENIED** |
 | **document_versions** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | **DENIED** |
@@ -105,9 +106,9 @@ The following matrix documents table RLS enforcement and live PostgreSQL role pr
 | **jurnal_baris** | Enabled & Forced | INSERT, SELECT | **DENIED** | **DENIED** |
 | **jurnal_umum** | Enabled & Forced | INSERT, SELECT | **DENIED** | **DENIED** |
 | **knowledge_base** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | SELECT |
-| **owners** | Enabled & Forced | DELETE, SELECT, UPDATE | SELECT | SELECT |
+| **owners** | Enabled & Forced | SELECT, UPDATE | SELECT | SELECT |
 | **parties** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | **DENIED** |
-| **payment_history** | Enabled & Forced | SELECT | SELECT | DELETE, INSERT, SELECT, UPDATE |
+| **payment_history** | Enabled & Forced | SELECT | SELECT | INSERT, SELECT, UPDATE |
 | **pending_actions** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | INSERT, SELECT, UPDATE |
 | **plan_prices** | Disabled | SELECT | SELECT | DELETE, INSERT, SELECT, UPDATE |
 | **plans** | Enabled & Forced | SELECT | SELECT | DELETE, INSERT, SELECT, UPDATE |
@@ -116,9 +117,9 @@ The following matrix documents table RLS enforcement and live PostgreSQL role pr
 | **schedules** | Enabled & Forced | DELETE, INSERT, SELECT, UPDATE | **DENIED** | DELETE, INSERT, SELECT, UPDATE |
 | **schema_migrations** | Disabled | **DENIED** | **DENIED** | **DENIED** |
 | **subscriptions** | Enabled & Forced | SELECT | SELECT | DELETE, INSERT, SELECT, UPDATE |
-| **system_logs** | Enabled & Forced | **DENIED** | SELECT | DELETE, INSERT, SELECT, UPDATE |
+| **system_logs** | Enabled & Forced | **DENIED** | SELECT | INSERT, SELECT |
 | **token_topups** | Enabled & Forced | SELECT | **DENIED** | DELETE, INSERT, SELECT, UPDATE |
-| **token_usage_logs** | Enabled & Forced | SELECT | **DENIED** | DELETE, INSERT, SELECT, UPDATE |
+| **token_usage_logs** | Enabled & Forced | SELECT | **DENIED** | INSERT, SELECT |
 | **topup_packages** | Disabled | SELECT | SELECT | DELETE, INSERT, SELECT, UPDATE |
 | **unanswered_questions** | Enabled & Forced | DELETE, SELECT, UPDATE | **DENIED** | DELETE, INSERT, SELECT, UPDATE |
 | **users** | Enabled & Forced | SELECT, UPDATE | SELECT | SELECT |
@@ -232,17 +233,17 @@ Total Views: **7** (All configured with `security_invoker = true`)
 7. **`v_admin_token_usage`**
 
 ### Triggers
-Total Triggers: **78**
+Total Triggers: **79**
 
 | Table | Trigger Name | Event | Timing | Action Statement |
 | :--- | :--- | :--- | :--- | :--- |
 | `accounts` | `trg_accounts_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `accounts` | `trg_accounts_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
+| `accounts` | `trg_audit_accounts` | `DELETE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `accounts` | `trg_audit_accounts` | `INSERT` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `accounts` | `trg_audit_accounts` | `UPDATE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
-| `accounts` | `trg_audit_accounts` | `DELETE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
-| `admin_audit_log` | `trg_prevent_admin_audit_log_mutation` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_admin_audit_log_mutation()` |
 | `admin_audit_log` | `trg_prevent_admin_audit_log_mutation` | `DELETE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_admin_audit_log_mutation()` |
+| `admin_audit_log` | `trg_prevent_admin_audit_log_mutation` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_admin_audit_log_mutation()` |
 | `ai_models` | `trg_ai_models_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
 | `alerts` | `trg_alerts_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
 | `audit_log` | `trg_prevent_audit_log_mutation` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_audit_log_mutation()` |
@@ -251,13 +252,14 @@ Total Triggers: **78**
 | `bookings` | `trg_bookings_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
 | `bot_configs` | `trg_bot_configs_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `bot_configs` | `trg_bot_configs_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
-| `buku_pembantu` | `trg_audit_buku_pembantu` | `INSERT` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `buku_pembantu` | `trg_audit_buku_pembantu` | `UPDATE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `buku_pembantu` | `trg_audit_buku_pembantu` | `DELETE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
+| `buku_pembantu` | `trg_audit_buku_pembantu` | `INSERT` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `buku_pembantu` | `trg_buku_pembantu_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `buku_pembantu` | `trg_buku_pembantu_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
 | `channel_connections` | `trg_channel_connections_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `channel_connections` | `trg_channel_connections_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
+| `channel_link_codes` | `trg_channel_link_codes_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `chat_logs` | `trg_chat_logs_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `document_versions` | `trg_set_document_version_no` | `INSERT` | `BEFORE` | `EXECUTE FUNCTION trigger_set_document_version_no()` |
 | `documents` | `trg_documents_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
@@ -267,28 +269,28 @@ Total Triggers: **78**
 | `inbound_messages` | `trg_inbound_messages_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `inbound_messages` | `trg_inbound_messages_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
 | `jurnal_baris` | `trg_check_journal_balance_lines` | `DELETE` | `AFTER` | `EXECUTE FUNCTION check_journal_balance()` |
-| `jurnal_baris` | `trg_check_journal_balance_lines` | `INSERT` | `AFTER` | `EXECUTE FUNCTION check_journal_balance()` |
 | `jurnal_baris` | `trg_check_journal_balance_lines` | `UPDATE` | `AFTER` | `EXECUTE FUNCTION check_journal_balance()` |
+| `jurnal_baris` | `trg_check_journal_balance_lines` | `INSERT` | `AFTER` | `EXECUTE FUNCTION check_journal_balance()` |
 | `jurnal_baris` | `trg_jurnal_baris_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `jurnal_baris` | `trg_prevent_jurnal_baris_mutation` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_journal_mutation()` |
 | `jurnal_baris` | `trg_prevent_jurnal_baris_mutation` | `DELETE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_journal_mutation()` |
 | `jurnal_baris` | `trg_validate_line_owner_consistency` | `INSERT` | `BEFORE` | `EXECUTE FUNCTION trigger_validate_line_owner_consistency()` |
-| `jurnal_umum` | `trg_audit_jurnal_umum` | `DELETE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `jurnal_umum` | `trg_audit_jurnal_umum` | `INSERT` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
+| `jurnal_umum` | `trg_audit_jurnal_umum` | `DELETE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `jurnal_umum` | `trg_audit_jurnal_umum` | `UPDATE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `jurnal_umum` | `trg_check_journal_balance_header` | `INSERT` | `AFTER` | `EXECUTE FUNCTION check_journal_balance()` |
 | `jurnal_umum` | `trg_check_journal_balance_header` | `UPDATE` | `AFTER` | `EXECUTE FUNCTION check_journal_balance()` |
 | `jurnal_umum` | `trg_jurnal_umum_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `jurnal_umum` | `trg_jurnal_umum_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
-| `jurnal_umum` | `trg_prevent_jurnal_umum_mutation` | `DELETE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_journal_mutation()` |
 | `jurnal_umum` | `trg_prevent_jurnal_umum_mutation` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_journal_mutation()` |
+| `jurnal_umum` | `trg_prevent_jurnal_umum_mutation` | `DELETE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_journal_mutation()` |
 | `knowledge_base` | `trg_knowledge_base_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `knowledge_base` | `trg_knowledge_base_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
 | `owners` | `trg_owners_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
 | `owners` | `trg_seed_default_accounts` | `INSERT` | `AFTER` | `EXECUTE FUNCTION on_owner_created_seed_accounts()` |
-| `parties` | `trg_audit_parties` | `DELETE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `parties` | `trg_audit_parties` | `UPDATE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `parties` | `trg_audit_parties` | `INSERT` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
+| `parties` | `trg_audit_parties` | `DELETE` | `AFTER` | `EXECUTE FUNCTION trigger_audit_log()` |
 | `parties` | `trg_parties_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |
 | `parties` | `trg_parties_updated_at` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_set_updated_at()` |
 | `payment_history` | `trg_payment_history_owner_immutable` | `UPDATE` | `BEFORE` | `EXECUTE FUNCTION trigger_prevent_owner_id_change()` |

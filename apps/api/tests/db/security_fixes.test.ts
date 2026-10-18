@@ -245,6 +245,7 @@ describe("Security Fixes A through F & Tenant Data Protection Verification", () 
       "inbound_messages",
       "chat_logs",
       "unanswered_questions",
+      "channel_link_codes",
     ];
 
     for (const table of contentTables) {
@@ -366,6 +367,10 @@ describe("Security Fixes A through F & Tenant Data Protection Verification", () 
         INSERT INTO unanswered_questions (owner_id, question_text)
         VALUES (${targetId}, 'What are your store hours?');
       `;
+      await adminSql`
+        INSERT INTO channel_link_codes (owner_id, channel, target_external_id, code_hash)
+        VALUES (${targetId}, 'whatsapp', '628123456789', 'hash123');
+      `;
 
       // 3. Execute delete_owner_data as the owner themselves
       await withOwnerContext(targetId, u.id, async (tx) => {
@@ -394,6 +399,376 @@ describe("Security Fixes A through F & Tenant Data Protection Verification", () 
         const count = parseInt(countRes[0].count, 10);
         expect(count).toBe(0);
       }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // TEST SUITE 6: Architectural & Security Fixes (Fixes 1-6)
+  // --------------------------------------------------------------------------
+  describe("6. Architectural & Security Fixes Verification", () => {
+    // FIX 1: ai_models RLS & Role Grants
+    describe("Fix 1: ai_models RLS & Role Grants", () => {
+      it("owner_ctx and system_ctx can SELECT from ai_models", async () => {
+        await withOwnerContext(ownerA.id, userA.id, async (tx) => {
+          const models = await tx`SELECT model_id, provider, tier, enabled FROM ai_models;`;
+          expect(models.length).toBeGreaterThan(0);
+          expect(models.some((m) => m.model_id === "gemini-1.5-flash")).toBe(true);
+        });
+
+        await withSystemContext(async (tx) => {
+          const models = await tx`SELECT model_id, provider, tier FROM ai_models;`;
+          expect(models.length).toBeGreaterThan(0);
+        });
+      });
+
+      it("owner_ctx cannot INSERT, UPDATE, or DELETE on ai_models", async () => {
+        let threwInsert = false;
+        try {
+          await withOwnerContext(ownerA.id, userA.id, async (tx) => {
+            await tx`
+              INSERT INTO ai_models (provider, model_id, tier, enabled, price_input_per_1m, price_output_per_1m)
+              VALUES ('test', 'test-model-owner', 'free', true, 1.0, 2.0);
+            `;
+          });
+        } catch (err: any) {
+          threwInsert = true;
+          expect(err.message).toMatch(/permission denied for table ai_models/i);
+        }
+        expect(threwInsert).toBe(true);
+      });
+
+      it("admin_ctx can manage ai_models (INSERT, UPDATE, DELETE)", async () => {
+        await withAdminContext(adminUser.id, async (tx) => {
+          await tx`
+            INSERT INTO ai_models (provider, model_id, tier, enabled, price_input_per_1m, price_output_per_1m)
+            VALUES ('openai', 'gpt-test-admin', 'pro', true, 2.50, 10.00);
+          `;
+
+          const [m] = await tx`SELECT model_id, enabled FROM ai_models WHERE model_id = 'gpt-test-admin';`;
+          expect(m.model_id).toBe("gpt-test-admin");
+          expect(m.enabled).toBe(true);
+
+          await tx`UPDATE ai_models SET enabled = false WHERE model_id = 'gpt-test-admin';`;
+          const [updated] = await tx`SELECT enabled FROM ai_models WHERE model_id = 'gpt-test-admin';`;
+          expect(updated.enabled).toBe(false);
+
+          await tx`DELETE FROM ai_models WHERE model_id = 'gpt-test-admin';`;
+          const remaining = await tx`SELECT model_id FROM ai_models WHERE model_id = 'gpt-test-admin';`;
+          expect(remaining.length).toBe(0);
+        });
+      });
+
+      it("system_ctx inserting into token_usage_logs triggers trigger_calc_token_usage_cost querying ai_models", async () => {
+        await withSystemContext(async (tx) => {
+          const [log] = await tx`
+            INSERT INTO token_usage_logs (owner_id, request_id, model, feature, input_tokens, output_tokens, total_tokens)
+            VALUES (${ownerA.id}, 'req-test-cost-calc-001', 'gemini-1.5-flash', 'chat', 2000, 1000, 3000)
+            RETURNING cost_estimate;
+          `;
+          expect(Number(log.cost_estimate)).toBeGreaterThan(0);
+        });
+      });
+    });
+
+    // FIX 2: Least-Privilege Hardening for Append-Only Logs & Owner Deletion
+    describe("Fix 2: Least-Privilege Hardening for Append-Only Logs & Direct Owner Deletion", () => {
+      it("system_ctx cannot UPDATE or DELETE in token_usage_logs", async () => {
+        let threwUpdate = false;
+        try {
+          await withSystemContext(async (tx) => {
+            await tx`UPDATE token_usage_logs SET total_tokens = 999999 WHERE request_id = 'req-test-cost-calc-001';`;
+          });
+        } catch (err: any) {
+          threwUpdate = true;
+          expect(err.message).toMatch(/permission denied for table token_usage_logs/i);
+        }
+        expect(threwUpdate).toBe(true);
+
+        let threwDelete = false;
+        try {
+          await withSystemContext(async (tx) => {
+            await tx`DELETE FROM token_usage_logs WHERE request_id = 'req-test-cost-calc-001';`;
+          });
+        } catch (err: any) {
+          threwDelete = true;
+          expect(err.message).toMatch(/permission denied for table token_usage_logs/i);
+        }
+        expect(threwDelete).toBe(true);
+      });
+
+      it("system_ctx cannot UPDATE or DELETE in system_logs", async () => {
+        let logId: string;
+        await withSystemContext(async (tx) => {
+          const [row] = await tx`
+            INSERT INTO system_logs (component, level, code, message)
+            VALUES ('test_component', 'info', 'SYS_TEST_IMMUTABLE', 'Original message')
+            RETURNING id;
+          `;
+          logId = row.id;
+        });
+
+        let threwUpdate = false;
+        try {
+          await withSystemContext(async (tx) => {
+            await tx`UPDATE system_logs SET message = 'tampered' WHERE id = ${logId}::uuid;`;
+          });
+        } catch (err: any) {
+          threwUpdate = true;
+          expect(err.message).toMatch(/permission denied for table system_logs/i);
+        }
+        expect(threwUpdate).toBe(true);
+
+        let threwDelete = false;
+        try {
+          await withSystemContext(async (tx) => {
+            await tx`DELETE FROM system_logs WHERE id = ${logId}::uuid;`;
+          });
+        } catch (err: any) {
+          threwDelete = true;
+          expect(err.message).toMatch(/permission denied for table system_logs/i);
+        }
+        expect(threwDelete).toBe(true);
+      });
+
+      it("system_ctx cannot DELETE from payment_history", async () => {
+        let threwDelete = false;
+        try {
+          await withSystemContext(async (tx) => {
+            await tx`DELETE FROM payment_history WHERE order_id = 'ORD-SEED-001';`;
+          });
+        } catch (err: any) {
+          threwDelete = true;
+          expect(err.message).toMatch(/permission denied for table payment_history/i);
+        }
+        expect(threwDelete).toBe(true);
+      });
+
+      it("owner_ctx cannot directly DELETE from owners table", async () => {
+        let threwDelete = false;
+        try {
+          await withOwnerContext(ownerA.id, userA.id, async (tx) => {
+            await tx`DELETE FROM owners WHERE id = ${ownerA.id};`;
+          });
+        } catch (err: any) {
+          threwDelete = true;
+          expect(err.message).toMatch(/permission denied for table owners/i);
+        }
+        expect(threwDelete).toBe(true);
+      });
+    });
+
+    // FIX 3: Encrypted Channel Credentials
+    describe("Fix 3: Encrypted Channel Credentials (channel_connections.credentials_enc)", () => {
+      it("owner_ctx can store and read bytea encrypted credentials", async () => {
+        const dummyTokenEnc = Buffer.from("enc_token_baileys_creds_987654321");
+        await withOwnerContext(ownerA.id, userA.id, async (tx) => {
+          const [conn] = await tx`
+            INSERT INTO channel_connections (owner_id, channel, external_account_id, session_ref, credentials_enc)
+            VALUES (${ownerA.id}, 'telegram', 'test-tg-enc-1', 'session-non-secret-ref', ${dummyTokenEnc})
+            RETURNING id, channel, session_ref, credentials_enc;
+          `;
+          expect(conn.channel).toBe("telegram");
+          expect(conn.session_ref).toBe("session-non-secret-ref");
+          expect(conn.credentials_enc).toBeDefined();
+
+          const buf = Buffer.from(conn.credentials_enc);
+          expect(buf.toString()).toBe("enc_token_baileys_creds_987654321");
+        });
+      });
+    });
+
+    // FIX 4: Align bot_configs with SRS Dual-Persona, AI Model, Whitelist, & Groups
+    describe("Fix 4: Align bot_configs with SRS Dual-Persona, AI Model, Whitelist, & Groups", () => {
+      it("bot_configs supports assistant and admin personas, model selection, and group rules", async () => {
+        await withOwnerContext(ownerA.id, userA.id, async (tx) => {
+          await tx`
+            UPDATE bot_configs
+            SET assistant_bot_name = 'Asisten Warkop',
+                assistant_persona_prompt = 'Kamu asisten warkop yang ramah.',
+                admin_bot_name = 'Kasir Bot',
+                admin_persona_prompt = 'Kamu kasir toko yang sigap melayani pesanan.',
+                persona_prompt = 'Fallback prompt',
+                selected_model_id = 'gemini-1.5-flash',
+                customer_access_mode = 'whitelist',
+                allowed_contacts = '["628111222333"]'::jsonb,
+                allowed_groups = '[{"group_id": "group-warkop-1", "response_mode": "mention_only", "is_internal": true}]'::jsonb
+            WHERE owner_id = ${ownerA.id};
+          `;
+
+          const [cfg] = await tx`
+            SELECT assistant_bot_name, assistant_persona_prompt, admin_bot_name, admin_persona_prompt,
+                   persona_prompt, selected_model_id, customer_access_mode, allowed_contacts, allowed_groups
+            FROM bot_configs
+            WHERE owner_id = ${ownerA.id};
+          `;
+
+          expect(cfg.assistant_bot_name).toBe("Asisten Warkop");
+          expect(cfg.assistant_persona_prompt).toBe("Kamu asisten warkop yang ramah.");
+          expect(cfg.admin_bot_name).toBe("Kasir Bot");
+          expect(cfg.admin_persona_prompt).toBe("Kamu kasir toko yang sigap melayani pesanan.");
+          expect(cfg.persona_prompt).toBe("Fallback prompt");
+          expect(cfg.selected_model_id).toBe("gemini-1.5-flash");
+          expect(cfg.customer_access_mode).toBe("whitelist");
+          expect(Array.isArray(cfg.allowed_contacts)).toBe(true);
+          expect(cfg.allowed_contacts[0]).toBe("628111222333");
+          expect(cfg.allowed_groups[0].group_id).toBe("group-warkop-1");
+        });
+      });
+
+      it("bot_configs enforces FK on selected_model_id", async () => {
+        let threwFK = false;
+        try {
+          await withOwnerContext(ownerA.id, userA.id, async (tx) => {
+            await tx`
+              UPDATE bot_configs
+              SET selected_model_id = 'invalid-nonexistent-model'
+              WHERE owner_id = ${ownerA.id};
+            `;
+          });
+        } catch (err: any) {
+          threwFK = true;
+          expect(err.message).toMatch(/violates foreign key constraint/i);
+        }
+        expect(threwFK).toBe(true);
+      });
+
+      it("bot_configs enforces CHECK on customer_access_mode ('open' | 'whitelist')", async () => {
+        let threwCheck = false;
+        try {
+          await withOwnerContext(ownerA.id, userA.id, async (tx) => {
+            await tx`
+              UPDATE bot_configs
+              SET customer_access_mode = 'all_access'
+              WHERE owner_id = ${ownerA.id};
+            `;
+          });
+        } catch (err: any) {
+          threwCheck = true;
+          expect(err.message).toMatch(/violates check constraint/i);
+        }
+        expect(threwCheck).toBe(true);
+      });
+    });
+
+    // FIX 5: Account Linking OTP Support (channel_link_codes)
+    describe("Fix 5: Account Linking OTP Support (channel_link_codes)", () => {
+      let otpId: string;
+
+      it("owner_ctx can insert and query link codes", async () => {
+        await withOwnerContext(ownerA.id, userA.id, async (tx) => {
+          const [row] = await tx`
+            INSERT INTO channel_link_codes (owner_id, channel, target_external_id, code_hash)
+            VALUES (${ownerA.id}, 'whatsapp', '628999888777', 'sha256_hashed_code_123')
+            RETURNING id, channel, target_external_id, code_hash, used_at;
+          `;
+          otpId = row.id;
+          expect(row.channel).toBe("whatsapp");
+          expect(row.target_external_id).toBe("628999888777");
+          expect(row.code_hash).toBe("sha256_hashed_code_123");
+          expect(row.used_at).toBeNull();
+        });
+      });
+
+      it("RLS prevents Owner B from seeing Owner A link codes", async () => {
+        await withOwnerContext(ownerB.id, userB.id, async (tx) => {
+          const rows = await tx`SELECT id FROM channel_link_codes WHERE id = ${otpId}::uuid;`;
+          expect(rows.length).toBe(0);
+        });
+      });
+
+      it("system_ctx can read and update link code (used_at)", async () => {
+        await withSystemContext(async (tx) => {
+          const [updated] = await tx`
+            UPDATE channel_link_codes
+            SET used_at = now()
+            WHERE id = ${otpId}::uuid
+            RETURNING id, used_at;
+          `;
+          expect(updated.used_at).not.toBeNull();
+        });
+      });
+
+      it("admin_ctx is denied access to channel_link_codes", async () => {
+        let threwAdmin = false;
+        try {
+          await withAdminContext(adminUser.id, async (tx) => {
+            await tx`SELECT * FROM channel_link_codes LIMIT 1;`;
+          });
+        } catch (err: any) {
+          threwAdmin = true;
+          expect(err.message).toMatch(/permission denied for table channel_link_codes/i);
+        }
+        expect(threwAdmin).toBe(true);
+      });
+    });
+
+    // FIX 6: Confirm Pending Action & Post Journal in Owner Context
+    describe("Fix 6: fn_confirm_pending_action Execution in Owner Context", () => {
+      it("Owner confirming a pending post_journal action successfully posts journal without permission errors", async () => {
+        await withOwnerContext(ownerA.id, userA.id, async (tx) => {
+          const accounts = await tx<{ id: string; type: string }[]>`
+            SELECT id, type FROM accounts WHERE owner_id = ${ownerA.id} AND code IN ('1101', '4101');
+          `;
+          const kas = accounts.find((a) => a.type === "asset");
+          const rev = accounts.find((a) => a.type === "revenue");
+
+          const actionPayload = {
+            header: {
+              description: "Penjualan Kopi Chat Confirmed",
+              source: "ocr",
+              source_ref: "CHAT-CONFIRM-TEST-001"
+            },
+            lines: [
+              { account_id: kas!.id, debit: 45000, credit: 0, memo: "Kas Masuk Kopi" },
+              { account_id: rev!.id, debit: 0, credit: 45000, memo: "Pendapatan Kopi" }
+            ]
+          };
+
+          const [action] = await tx<{ id: string }[]>`
+            INSERT INTO pending_actions (owner_id, type, payload, expires_at)
+            VALUES (${ownerA.id}, 'post_journal', ${tx.json(actionPayload)}, now() + interval '10 minutes')
+            RETURNING id;
+          `;
+
+          const [resRaw] = await tx<{ fn_confirm_pending_action: any }[]>`
+            SELECT fn_confirm_pending_action(${action.id}) AS fn_confirm_pending_action;
+          `;
+
+          const result = typeof resRaw.fn_confirm_pending_action === "string"
+            ? JSON.parse(resRaw.fn_confirm_pending_action)
+            : resRaw.fn_confirm_pending_action;
+
+          expect(result.status).toBe("confirmed");
+          expect(result.journal_id).toBeDefined();
+
+          // Verify journal was posted to jurnal_umum
+          const [j] = await tx`
+            SELECT id, description, source, kind
+            FROM jurnal_umum
+            WHERE id = ${result.journal_id}::uuid;
+          `;
+          expect(j.description).toBe("Penjualan Kopi Chat Confirmed");
+          expect(j.source).toBe("ocr");
+          expect(j.kind).toBe("normal");
+
+          // Verify journal lines were posted to jurnal_baris
+          const lines = await tx`
+            SELECT debit, credit, memo
+            FROM jurnal_baris
+            WHERE journal_id = ${result.journal_id}::uuid
+            ORDER BY debit DESC;
+          `;
+          expect(lines.length).toBe(2);
+          expect(Number(lines[0].debit)).toBe(45000);
+          expect(Number(lines[1].credit)).toBe(45000);
+
+          // Verify pending action status changed to confirmed
+          const [actUpdated] = await tx`
+            SELECT status FROM pending_actions WHERE id = ${action.id}::uuid;
+          `;
+          expect(actUpdated.status).toBe("confirmed");
+        });
+      });
     });
   });
 });
