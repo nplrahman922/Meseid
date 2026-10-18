@@ -24,7 +24,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-meseid_app_secret_pass_123}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
     # Pengaturan awal untuk RAM kecil (server 4 GB). Sesuaikan setelah diukur.
     command:
       - postgres
@@ -104,7 +104,7 @@ services:
   web:
     build: ./apps/web
     ports:
-      - "${WEB_PORT:-8080}:80"        # di VPS produksi: "80:80" atau di belakang reverse proxy HTTPS
+      - "${WEB_PORT:-80}:80"        # default port 80 HTTP (akses langsung tanpa :8080)
     depends_on:
       - api
     mem_limit: 64m

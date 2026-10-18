@@ -1,3 +1,50 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
+
+@theme {
+  --font-inter: 'Inter', sans-serif;
+  --font-space: 'Space Mono', monospace;
+  --font-mono-intel: 'Intel One Mono', monospace;
+  --font-julius: 'Julius Sans One', sans-serif;
+
+  --color-meseid-green: #67d65d;
+  --color-meseid-green-hover: #52c847;
+  --color-meseid-green-bright: #1dd205;
+  --color-meseid-footer: #89e781;
+  --color-meseid-divider: #9de791;
+
+  /* Official Design Tokens (dashboard-users/color.png) */
+  --color-brand-utama: #1ED10E;
+  --color-brand-tombol: #5FD068;
+  --color-brand-lembut: #86E57F;
+  --color-brand-latar-hijau: #E8F9E6;
+  --color-brand-hijau-gelap: #0E6B2B;
+  --color-brand-latar: #FAFAFA;
+  --color-brand-permukaan: #FFFFFF;
+  --color-brand-teks-utama: #111111;
+  --color-brand-teks-sekunder: #6B7280;
+  --color-brand-batas: #E5E7EB;
+  --color-brand-hitam: #000000;
+  --color-brand-sukses: #22C55E;
+  --color-brand-peringatan: #F59E0B;
+  --color-brand-kesalahan: #EF4444;
+  --color-brand-informasi: #3B82F6;
+}
+
+/* Typography Utility Classes */
+.font-inter {
+  font-family: var(--font-inter);
+}
+
+.font-space {
+  font-family: var(--font-space);
+}
+
+.font-intel {
+  font-family: var(--font-mono-intel);
+}
+
+.font-julius {
+  font-family: var(--font-julius);
+}

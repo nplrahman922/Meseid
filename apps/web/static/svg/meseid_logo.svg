@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 80" fill="none">
+  <!-- Rounded Square -->
+  <rect x="16" y="18" width="46" height="46" rx="9" stroke="#1dd205" stroke-width="7.5" stroke-linejoin="round" />
+  <!-- Diagonal Inner Line -->
+  <line x1="23" y1="25" x2="54" y2="56" stroke="#1dd205" stroke-width="4.5" stroke-linecap="round" />
+  <!-- Antenna Line -->
+  <line x1="56" y1="58" x2="82" y2="23" stroke="#1dd205" stroke-width="6.5" stroke-linecap="round" />
+  <!-- Antenna Black Dot -->
+  <circle cx="82" cy="23" r="5.5" fill="#000000" />
+</svg>
