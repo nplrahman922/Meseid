@@ -90,9 +90,11 @@ services:
       TELEGRAM_MODE: ${TELEGRAM_MODE:-polling}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       WA_SESSION_PATH: /data/wa-session
+      ERROR_LOG_DIR: /app/logs/error/bot
     volumes:
       # Sesi Baileys disimpan di volume terpisah agar tidak ikut hilang saat database di-reset
       - wa-session:/data/wa-session
+      - ./logs:/app/logs
     depends_on:
       api:
         condition: service_healthy
