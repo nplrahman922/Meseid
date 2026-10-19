@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { verifySession, SESSION_COOKIE_NAME, SessionPayload } from "../lib/session";
-import { withSystemContext, withOwnerContext, withAdminContext, Tx } from "../db/client";
+import { withOwnerContext, withAdminContext, Tx } from "../db/client";
+import { findUserById, findOwnerByUserId } from "../modules/auth";
 
 export interface AuthenticatedUser {
   id: string;
@@ -69,11 +70,7 @@ export const requireAuth = new Elysia({ name: "requireAuth" })
       };
     }
 
-    const [userRow] = await withSystemContext(async (tx) => {
-      return await tx<{ id: string; email: string; role: string; status: string }[]>`
-        SELECT id, email, role, status FROM users WHERE id = ${session.userId}::uuid;
-      `;
-    });
+    const userRow = await findUserById(session.userId);
 
     if (!userRow) {
       set.status = 401;
@@ -101,11 +98,7 @@ export const requireAuth = new Elysia({ name: "requireAuth" })
   })
   .derive({ as: "global" }, async ({ session }) => {
     if (!session) return { user: null as unknown as AuthenticatedUser };
-    const [userRow] = await withSystemContext(async (tx) => {
-      return await tx<{ id: string; email: string; role: "owner" | "admin"; status: string }[]>`
-        SELECT id, email, role, status FROM users WHERE id = ${session.userId}::uuid;
-      `;
-    });
+    const userRow = await findUserById(session.userId);
     return {
       user: userRow
         ? {
@@ -133,11 +126,7 @@ export const requireOwner = new Elysia({ name: "requireOwner" })
       };
     }
 
-    const [userRow] = await withSystemContext(async (tx) => {
-      return await tx<{ id: string; email: string; role: string; status: string }[]>`
-        SELECT id, email, role, status FROM users WHERE id = ${session.userId}::uuid;
-      `;
-    });
+    const userRow = await findUserById(session.userId);
 
     if (!userRow) {
       set.status = 401;
@@ -163,21 +152,7 @@ export const requireOwner = new Elysia({ name: "requireOwner" })
       };
     }
 
-    const [ownerRow] = await withSystemContext(async (tx) => {
-      return await tx<{
-        id: string;
-        user_id: string;
-        business_name: string;
-        business_type: string;
-        timezone: string;
-        status: string;
-        suspended_reason: string | null;
-      }[]>`
-        SELECT id, user_id, business_name, business_type, timezone, status, suspended_reason
-        FROM owners
-        WHERE user_id = ${session.userId}::uuid;
-      `;
-    });
+    const ownerRow = await findOwnerByUserId(session.userId);
 
     if (!ownerRow) {
       set.status = 404;
@@ -205,27 +180,8 @@ export const requireOwner = new Elysia({ name: "requireOwner" })
       };
     }
 
-    const [userRow] = await withSystemContext(async (tx) => {
-      return await tx<{ id: string; email: string; role: "owner"; status: string }[]>`
-        SELECT id, email, role, status FROM users WHERE id = ${session.userId}::uuid;
-      `;
-    });
-
-    const [ownerRow] = await withSystemContext(async (tx) => {
-      return await tx<{
-        id: string;
-        user_id: string;
-        business_name: string;
-        business_type: string;
-        timezone: string;
-        status: string;
-        suspended_reason: string | null;
-      }[]>`
-        SELECT id, user_id, business_name, business_type, timezone, status, suspended_reason
-        FROM owners
-        WHERE user_id = ${session.userId}::uuid;
-      `;
-    });
+    const userRow = await findUserById(session.userId);
+    const ownerRow = await findOwnerByUserId(session.userId);
 
     if (!userRow || !ownerRow) {
       return {
@@ -274,11 +230,7 @@ export const requireAdmin = new Elysia({ name: "requireAdmin" })
       };
     }
 
-    const [userRow] = await withSystemContext(async (tx) => {
-      return await tx<{ id: string; email: string; role: string; status: string }[]>`
-        SELECT id, email, role, status FROM users WHERE id = ${session.userId}::uuid;
-      `;
-    });
+    const userRow = await findUserById(session.userId);
 
     if (!userRow) {
       set.status = 401;
@@ -307,3 +259,4 @@ export const requireAdmin = new Elysia({ name: "requireAdmin" })
 
     return { runAdminTx };
   });
+

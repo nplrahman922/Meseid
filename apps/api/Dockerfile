@@ -12,6 +12,9 @@ ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Buat direktori logs dan berikan izin tulis ke user bun
+RUN mkdir -p /app/logs/error/api && chown -R bun:bun /app/logs
+
 USER bun
 EXPOSE 3000
 

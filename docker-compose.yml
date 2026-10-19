@@ -63,12 +63,15 @@ services:
       APP_DATABASE_URL: postgresql://meseid_app:${APP_DB_PASSWORD:-meseid_app_secret_pass_123}@postgres:5432/${POSTGRES_DB}
       # Alamat bot di jaringan internal (untuk mengirim pesan/pengingat)
       BOT_INTERNAL_URL: http://bot:3001
+      ERROR_LOG_DIR: /app/logs/error/api
     depends_on:
       postgres:
         condition: service_healthy
     # Dibuka ke localhost untuk debugging. HAPUS di produksi (web sudah meneruskan /api ke sini).
     ports:
       - "127.0.0.1:3000:3000"
+    volumes:
+      - ./logs:/app/logs
     mem_limit: 512m
     restart: unless-stopped
     logging: *default-logging

@@ -79,5 +79,5 @@ export const env: EnvConfig = {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
   NODE_ENV: process.env.NODE_ENV || "development",
-  PORT: Number(process.env.PORT || 3000),
+  PORT: Number(process.env.PORT || process.env.API_PORT || 3000),
 };
