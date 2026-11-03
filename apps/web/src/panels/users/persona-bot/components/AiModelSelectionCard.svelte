@@ -28,18 +28,14 @@
 	let currentPage = $state(1);
 	const pageSize = 5;
 
-	// Perbarui status aksesibilitas berdasarkan plan akun
-	$effect(() => {
-		const pro = isUserPro;
-		models = models.map((m) => ({
-			...m,
-			isAccessible: pro ? true : m.tier === 'free'
-		}));
-	});
-
 	let totalPages = $derived(Math.ceil(models.length / pageSize));
 	let paginatedModels = $derived(
-		models.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+		models
+			.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+			.map((m) => ({
+				...m,
+				isAccessible: isUserPro ? true : m.tier === 'free'
+			}))
 	);
 	let selectedCount = $derived(models.filter((m) => m.isSelected).length);
 	let activeModelName = $derived(models.find((m) => m.isSelected)?.name || 'Belum dipilih');
