@@ -65,20 +65,30 @@
 	let isOtherValid = $derived(businessType !== 'lainnya' || customCategory.trim().length > 0);
 	let isValid = $derived(isNameValid && isOtherValid);
 
-	onMount(() => {
-		businessName = initialBusinessName;
-		businessType = initialBusinessType || 'kuliner';
-		customCategory = initialCustomCategory || '';
-		businessDescription = initialBusinessDescription || '';
-		businessInputElement?.focus();
-	});
+	let hasSynced = false;
 
-	$effect(() => {
-		if (initialBusinessName && !businessName) {
+	onMount(() => {
+		if (initialBusinessName) {
 			businessName = initialBusinessName;
 			businessType = initialBusinessType || 'kuliner';
 			customCategory = initialCustomCategory || '';
 			businessDescription = initialBusinessDescription || '';
+			hasSynced = true;
+		} else {
+			businessType = initialBusinessType || 'kuliner';
+			customCategory = initialCustomCategory || '';
+			businessDescription = initialBusinessDescription || '';
+		}
+		businessInputElement?.focus();
+	});
+
+	$effect(() => {
+		if (!hasSynced && initialBusinessName) {
+			businessName = initialBusinessName;
+			businessType = initialBusinessType || 'kuliner';
+			customCategory = initialCustomCategory || '';
+			businessDescription = initialBusinessDescription || '';
+			hasSynced = true;
 		}
 	});
 

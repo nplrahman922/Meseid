@@ -72,7 +72,7 @@ export async function getOnboardingDetail(
 
   return {
     onboardingCompleted: owner?.onboarding_completed ?? false,
-    userName: owner?.owner_name || owner?.business_name || owner?.user_email || "",
+    userName: owner?.owner_name || (owner?.user_email ? owner.user_email.split("@")[0] : ""),
     businessName: owner?.business_name || "",
     businessType: owner?.business_type || "kuliner",
     customCategory: owner?.custom_business_type || null,

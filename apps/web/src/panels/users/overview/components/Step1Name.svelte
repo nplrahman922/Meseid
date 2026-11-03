@@ -11,15 +11,20 @@
 	let name = $state('');
 	let inputElement: HTMLInputElement | undefined = $state();
 	let isValid = $derived(name.trim().length > 0);
+	let hasSynced = false;
 
 	onMount(() => {
-		name = initialName;
+		if (initialName) {
+			name = initialName;
+			hasSynced = true;
+		}
 		inputElement?.focus();
 	});
 
 	$effect(() => {
-		if (initialName && !name) {
+		if (!hasSynced && initialName) {
 			name = initialName;
+			hasSynced = true;
 		}
 	});
 

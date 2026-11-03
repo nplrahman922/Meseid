@@ -43,8 +43,13 @@
 	// Feedback submit
 	let submitFeedback = $state(false);
 
+	let hasSynced = false;
+
 	onMount(() => {
-		botName = initialBotName;
+		if (initialBotName) {
+			botName = initialBotName;
+			hasSynced = true;
+		}
 		speakingStyles = initialSpeakingStyles.length > 0
 			? [...initialSpeakingStyles]
 			: ['Ramah', 'Informatif'];
@@ -54,14 +59,15 @@
 	});
 
 	$effect(() => {
-		if (initialBotName && !botName) {
+		if (!hasSynced && initialBotName) {
 			botName = initialBotName;
-		}
-		if (initialSpeakingStyles && initialSpeakingStyles.length > 0 && speakingStyles.length === 0) {
-			speakingStyles = [...initialSpeakingStyles];
-		}
-		if (initialCustomRules && initialCustomRules.length > 0 && customRules.length === 0) {
-			customRules = [...initialCustomRules];
+			if (initialSpeakingStyles && initialSpeakingStyles.length > 0) {
+				speakingStyles = [...initialSpeakingStyles];
+			}
+			if (initialCustomRules && initialCustomRules.length > 0) {
+				customRules = [...initialCustomRules];
+			}
+			hasSynced = true;
 		}
 	});
 

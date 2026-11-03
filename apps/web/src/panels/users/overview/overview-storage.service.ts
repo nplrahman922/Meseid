@@ -65,16 +65,13 @@ export function getOverviewDraft(): OverviewData {
 		const raw = localStorage.getItem(STORAGE_KEY_DRAFT);
 		if (!raw) return { ...defaultOverviewData };
 		const parsed = JSON.parse(raw);
-		const dummyStrings = ['Cherfully', 'Please Call Me "Tuan Muda"', 'Dont call me Nig', 'Never ask me twice', 'No Racist Word'];
-		const filterDummy = (arr: any) => Array.isArray(arr) ? arr.filter((s: string) => !dummyStrings.includes(s)) : arr;
-
 		return {
 			...defaultOverviewData,
 			...parsed,
-			storeSpeakingStyles: filterDummy(parsed.storeSpeakingStyles || defaultOverviewData.storeSpeakingStyles),
-			storeCustomRules: filterDummy(parsed.storeCustomRules || defaultOverviewData.storeCustomRules),
-			assistantSpeakingStyles: filterDummy(parsed.assistantSpeakingStyles || defaultOverviewData.assistantSpeakingStyles),
-			assistantCustomRules: filterDummy(parsed.assistantCustomRules || defaultOverviewData.assistantCustomRules),
+			storeSpeakingStyles: parsed.storeSpeakingStyles || defaultOverviewData.storeSpeakingStyles,
+			storeCustomRules: parsed.storeCustomRules || defaultOverviewData.storeCustomRules,
+			assistantSpeakingStyles: parsed.assistantSpeakingStyles || defaultOverviewData.assistantSpeakingStyles,
+			assistantCustomRules: parsed.assistantCustomRules || defaultOverviewData.assistantCustomRules,
 		};
 	} catch (e) {
 		console.warn('Gagal mengambil draft overview:', e);

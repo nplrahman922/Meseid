@@ -56,6 +56,12 @@ describe("Tahap 11: Onboarding Detail & Pre-fill Architecture Test Suite", () =>
       expect(detail.assistantBotName).toBe("Enbee Asisten");
       expect(detail.knowledgeBase.length).toBeGreaterThanOrEqual(1);
       expect(detail.knowledgeBase.some((k) => k.title === "Paket Website UMKM")).toBe(true);
+
+      // 3. Verifikasi fallback userName jika owner_name kosong tidak boleh mengambil business_name
+      await tx`UPDATE owners SET owner_name = NULL WHERE id = ${owner.id}::uuid;`;
+      const fallbackDetail = await getOnboardingDetail(tx, owner.id);
+      expect(fallbackDetail.userName).not.toBe("Jasting Solusi Digital");
+      expect(fallbackDetail.businessName).toBe("Jasting Solusi Digital");
     });
   });
 });
