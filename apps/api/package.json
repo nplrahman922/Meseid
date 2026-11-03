@@ -7,7 +7,8 @@
     "db:migrate": "bun run src/db/migrate.ts",
     "db:seed": "bun run src/db/seed.ts",
     "db:reset": "bun run src/db/reset.ts",
-    "docs:generate": "bun run scripts/generate_docs.ts"
+    "docs:generate": "bun run scripts/generate_docs.ts",
+    "ai:test": "bun run scripts/test_ai.ts"
   },
   "dependencies": {
     "elysia": "latest",

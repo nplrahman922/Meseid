@@ -16,6 +16,17 @@ export interface EnvConfig {
   ADMIN_EMAILS: string[];
   NODE_ENV: string;
   PORT: number;
+  AI_PROVIDER_API_KEY: string;
+  AI_DEFAULT_MODEL_FREE: string;
+  AI_FALLBACK_MODELS_FREE: string[];
+  AI_DEFAULT_MODEL_PRO: string;
+  AI_GATEWAY_URL: string;
+  DEV_AUTO_BIND_OWNER: boolean;
+  DEV_OWNER_TELEGRAM_ID: string;
+  DEV_OWNER_WHATSAPP_PHONE: string;
+  DEV_OWNER_WHATSAPP_LID: string;
+  INTERNAL_API_SECRET: string;
+  BOT_INTERNAL_URL: string;
 }
 
 import path from "node:path";
@@ -80,4 +91,17 @@ export const env: EnvConfig = {
     .filter(Boolean),
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: Number(process.env.PORT || process.env.API_PORT || 3000),
+  AI_PROVIDER_API_KEY: process.env.AI_PROVIDER_API_KEY || "",
+  AI_DEFAULT_MODEL_FREE: process.env.AI_DEFAULT_MODEL_FREE || "minimax/minimax-m3.1-flash",
+  AI_FALLBACK_MODELS_FREE: process.env.AI_FALLBACK_MODELS_FREE
+    ? process.env.AI_FALLBACK_MODELS_FREE.split(",").map((m) => m.trim()).filter(Boolean)
+    : [],
+  AI_DEFAULT_MODEL_PRO: process.env.AI_DEFAULT_MODEL_PRO || "alibaba/qwen3.5-flash",
+  AI_GATEWAY_URL: (process.env.AI_GATEWAY_URL || "https://ai-gateway.vercel.sh/v1").replace(/\/+$/, ""),
+  DEV_AUTO_BIND_OWNER: process.env.DEV_AUTO_BIND_OWNER === "true" || process.env.DEV_AUTO_BIND_OWNER === "1",
+  DEV_OWNER_TELEGRAM_ID: process.env.DEV_OWNER_TELEGRAM_ID?.trim() || "",
+  DEV_OWNER_WHATSAPP_PHONE: process.env.DEV_OWNER_WHATSAPP_PHONE?.replace(/[^0-9]/g, "") || "",
+  DEV_OWNER_WHATSAPP_LID: process.env.DEV_OWNER_WHATSAPP_LID?.trim() || "",
+  INTERNAL_API_SECRET: process.env.INTERNAL_API_SECRET || "meseid_internal_secret_change_in_production_key_32c",
+  BOT_INTERNAL_URL: process.env.BOT_INTERNAL_URL || "http://127.0.0.1:3001",
 };

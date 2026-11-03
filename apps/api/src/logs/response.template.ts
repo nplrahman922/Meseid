@@ -27,8 +27,9 @@ export interface StandardErrorResponse {
 }
 
 export interface SetContext {
-  status?: number | string;
-  headers?: Record<string, string>;
+  status?: number | string | any;
+  headers?: Record<string, string | number | undefined> | any;
+  [key: string]: any;
 }
 
 /**

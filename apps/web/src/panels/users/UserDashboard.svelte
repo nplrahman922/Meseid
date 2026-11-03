@@ -3,6 +3,16 @@
 	import UserSidebar from '../../components/UserSidebar.svelte';
 	import UserNavbar from '../../components/UserNavbar.svelte';
 	import EmptyState501 from '../../components/EmptyState501.svelte';
+	import BerandaRoot from './beranda/BerandaRoot.svelte';
+	import KanalRoot from './kanal/KanalRoot.svelte';
+	import KnowledgeBaseRoot from './knowledge-base/KnowledgeBaseRoot.svelte';
+	import PersonaBotRoot from './persona-bot/PersonaBotRoot.svelte';
+	import JamOperasionalRoot from './jam-operasional/JamOperasionalRoot.svelte';
+	import KeuanganRoot from './keuangan/KeuanganRoot.svelte';
+	import DokumenRoot from './dokumen/DokumenRoot.svelte';
+	import JadwalRoot from './jadwal/JadwalRoot.svelte';
+	import LanggananRoot from './langganan/LanggananRoot.svelte';
+	import PengaturanRoot from './pengaturan/PengaturanRoot.svelte';
 	import { authState, checkAuth, logoutUser, requireAuth } from '../../auth/authStore';
 	import { formatUserDateTime } from '../../lib/dateTime';
 
@@ -34,7 +44,16 @@
 			isAuthorized = true;
 		}
 
-		// 2. Real-time live clock ticking every second (auto-detects local browser timezone WITA/WIB/WIT)
+		// 2. Synchronize activeTab from URL search params if present
+		if (typeof window !== 'undefined') {
+			const params = new URLSearchParams(window.location.search);
+			const tabParam = params.get('tab');
+			if (tabParam && tabLabels[tabParam]) {
+				activeTab = tabParam;
+			}
+		}
+
+		// 3. Real-time live clock ticking every second (auto-detects local browser timezone WITA/WIB/WIT)
 		clockInterval = setInterval(() => {
 			currentDateTime = formatUserDateTime();
 		}, 1000);
@@ -74,6 +93,11 @@
 
 	function handleSelectTab(id: string) {
 		activeTab = id;
+		if (typeof window !== 'undefined' && window.history.replaceState) {
+			const url = new URL(window.location.href);
+			url.searchParams.set('tab', id);
+			window.history.replaceState({}, '', url.toString());
+		}
 	}
 
 	function toggleMobileSidebar() {
@@ -139,12 +163,81 @@
 				onHelpClick={handleHelpClick}
 			/>
 
-			<!-- Canvas / Page Content (Matching default-desktop-users.png & default-mobile-users.png) -->
-			<main class="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-[#FAFAFA] overflow-y-auto">
-				<EmptyState501
-					title="Coming Soon"
-					code="501"
-				/>
+			<!-- Canvas / Page Content -->
+			<main class="flex-1 p-4 sm:p-6 md:p-8 bg-[#FAFAFA] overflow-y-auto">
+				{#if activeTab === 'beranda'}
+					<BerandaRoot
+						businessName={computedBusinessName}
+						userName={computedUserName}
+						role={userRole}
+						dateText={currentDateTime}
+						onNavigateTab={handleSelectTab}
+					/>
+				{:else if activeTab === 'kanal'}
+					<KanalRoot
+						businessName={computedBusinessName}
+						userName={computedUserName}
+						role={userRole}
+						dateText={currentDateTime}
+					/>
+				{:else if activeTab === 'knowledge-base'}
+					<KnowledgeBaseRoot
+						businessName={computedBusinessName}
+						role={userRole}
+						dateText={currentDateTime}
+					/>
+				{:else if activeTab === 'persona-bot'}
+					<PersonaBotRoot
+						businessName={computedBusinessName}
+						role={userRole}
+						dateText={currentDateTime}
+					/>
+				{:else if activeTab === 'jam-operasional'}
+					<JamOperasionalRoot
+						businessName={computedBusinessName}
+						userName={computedUserName}
+						role={userRole}
+						dateText={currentDateTime}
+					/>
+				{:else if activeTab === 'keuangan'}
+					<KeuanganRoot
+						businessName={computedBusinessName}
+						role={userRole}
+						dateText={currentDateTime}
+					/>
+				{:else if activeTab === 'dokumen'}
+					<DokumenRoot
+						businessName={computedBusinessName}
+						role={userRole}
+						dateText={currentDateTime}
+					/>
+				{:else if activeTab === 'jadwal'}
+					<JadwalRoot
+						businessName={computedBusinessName}
+						role={userRole}
+						dateText={currentDateTime}
+					/>
+				{:else if activeTab === 'langganan'}
+					<LanggananRoot
+						businessName={computedBusinessName}
+						role={userRole}
+						dateText={currentDateTime}
+					/>
+				{:else if activeTab === 'pengaturan'}
+					<PengaturanRoot
+						businessName={computedBusinessName}
+						userName={computedUserName}
+						role={userRole}
+						dateText={currentDateTime}
+					/>
+				{:else}
+					<div class="h-full min-h-[60vh] flex items-center justify-center">
+						<EmptyState501
+							title="Coming Soon"
+							code="501"
+						/>
+					</div>
+				{/if}
 			</main>
 		</div>
 	</div>

@@ -272,6 +272,7 @@ erDiagram
         text content
         timestamptz created_at
         timestamptz updated_at
+        bool is_internal
     }
 
     owners {
@@ -284,6 +285,10 @@ erDiagram
         text suspended_reason  "nullable"
         timestamptz created_at
         timestamptz updated_at
+        text phone  "nullable"
+        text custom_business_type  "nullable"
+        text business_description  "nullable"
+        bool onboarding_completed
     }
 
     parties {
@@ -712,7 +717,7 @@ Total Registered Tables: **36**
 | `owner_id` | `uuid` | `YES` | _none_ |
 | `sender_id` | `text` | `NO` | _none_ |
 | `payload_hash` | `text` | `YES` | _none_ |
-| `status` | `text` | `NO` | `'received'::text` |
+| `status` | `text` | `NO` | `'processing'::text` |
 | `created_at` | `timestamptz` | `NO` | `now()` |
 | `updated_at` | `timestamptz` | `NO` | `now()` |
 
@@ -759,6 +764,7 @@ Total Registered Tables: **36**
 | `content` | `text` | `NO` | _none_ |
 | `created_at` | `timestamptz` | `NO` | `now()` |
 | `updated_at` | `timestamptz` | `NO` | `now()` |
+| `is_internal` | `bool` | `NO` | `false` |
 
 ### Table: `owners`
 - **RLS Enabled:** `true` | **RLS Forced:** `true`
@@ -774,6 +780,10 @@ Total Registered Tables: **36**
 | `suspended_reason` | `text` | `YES` | _none_ |
 | `created_at` | `timestamptz` | `NO` | `now()` |
 | `updated_at` | `timestamptz` | `NO` | `now()` |
+| `phone` | `text` | `YES` | _none_ |
+| `custom_business_type` | `text` | `YES` | _none_ |
+| `business_description` | `text` | `YES` | _none_ |
+| `onboarding_completed` | `bool` | `NO` | `false` |
 
 ### Table: `parties`
 - **RLS Enabled:** `true` | **RLS Forced:** `true`

@@ -14,6 +14,7 @@ export interface InboundMessagePayload {
   chat_type: 'private' | 'group' | 'supergroup' | 'channel';
   message_type: 'text' | 'photo' | 'document' | 'callback';
   text?: string;
+  quoted_text?: string;
   callback_data?: string;
   attachments?: Array<{
     file_id: string;

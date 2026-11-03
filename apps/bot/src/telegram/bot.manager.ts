@@ -172,6 +172,60 @@ export class TelegramBotManager {
   }
 
   /**
+   * Memvalidasi token bot dari BotFather via Telegram API getMe,
+   * dan mendaftarkan instance bot ke pool aktif jika valid.
+   */
+  async verifyAndRegisterBot(token: string): Promise<{
+    valid: boolean;
+    botId?: string;
+    username?: string;
+    firstName?: string;
+    error?: string;
+  }> {
+    const cleanToken = token.trim();
+    if (!cleanToken) {
+      return { valid: false, error: 'Telegram bot token cannot be empty.' };
+    }
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${cleanToken}/getMe`);
+      const data = (await res.json()) as any;
+
+      if (!data.ok || !data.result) {
+        return {
+          valid: false,
+          error: data.description || 'Invalid token. Please check your BotFather token.',
+        };
+      }
+
+      const botId = String(data.result.id);
+      const username = data.result.username || '';
+      const firstName = data.result.first_name || '';
+
+      // Daftarkan bot ke pool aktif jika belum terdaftar
+      if (!this.bots.has(botId)) {
+        await this.registerBot({
+          botId,
+          token: cleanToken,
+          mode: 'polling',
+        });
+      }
+
+      return {
+        valid: true,
+        botId,
+        username,
+        firstName,
+      };
+    } catch (err: any) {
+      return {
+        valid: false,
+        error: `Failed to reach Telegram API: ${err.message}`,
+      };
+    }
+  }
+
+  /**
    * Menghentikan bot tertentu.
    */
   async stopBot(botId: string): Promise<void> {

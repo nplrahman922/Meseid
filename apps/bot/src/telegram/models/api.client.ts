@@ -11,7 +11,7 @@ export class ApiClient {
   constructor() {
     this.apiUrl = (process.env.API_INTERNAL_URL || 'http://localhost:3000').replace(/\/+$/, '');
     this.internalSecret = process.env.INTERNAL_API_SECRET || '';
-    this.timeoutMs = 15000; // 15 detik timeout untuk pemrosesan AI / DB
+    this.timeoutMs = 75000; // 75 detik timeout (cukup untuk multi-turn distillation + code/text generation + secondary guardrail)
   }
 
   /**
@@ -45,7 +45,7 @@ export class ApiClient {
         });
         return {
           status: 'error',
-          reply_text: 'Mohon maaf, sistem asisten Meseid sedang memproses antrean. Silakan coba beberapa saat lagi.',
+          reply_text: 'Mohon maaf, sistem asisten Meseid sedang mengalami kendala jaringan. Silakan coba kirim kembali beberapa saat lagi.',
           error: `HTTP ${response.status}: ${errorText}`,
         };
       }
@@ -71,7 +71,7 @@ export class ApiClient {
 
       return {
         status: 'error',
-        reply_text: 'Mohon maaf, sistem Meseid sedang dalam pemeliharaan sejenak. Pesan Anda telah dicatat.',
+        reply_text: 'Mohon maaf, sistem asisten Meseid belum dapat memproses pesan Anda. Data belum tersimpan. Silakan coba kirim kembali beberapa saat lagi.',
         error: errorMessage,
       };
     }

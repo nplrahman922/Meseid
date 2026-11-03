@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS inbound_messages (
   owner_id uuid REFERENCES owners(id) ON DELETE CASCADE,
   sender_id text NOT NULL,
   payload_hash text,
-  status text NOT NULL DEFAULT 'received' CHECK (status IN ('received', 'processed', 'duplicate', 'failed')),
+  status text NOT NULL DEFAULT 'processing' CHECK (status IN ('processing', 'done', 'failed', 'duplicate')),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT uq_inbound_channel_msg UNIQUE (channel, external_message_id)

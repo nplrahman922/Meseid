@@ -30,7 +30,7 @@
 	}
 
 	function handleGoogleLogin() {
-		loginWithGoogle();
+		loginWithGoogle('/overview');
 	}
 </script>
 

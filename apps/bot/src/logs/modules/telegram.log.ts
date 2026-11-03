@@ -9,12 +9,13 @@ export function logMessageReceived(
   text: string,
   chatId: string
 ): void {
-  telegramLogger.info(`Pesan masuk dari user ${senderId}: "${text.slice(0, 50)}${text.length > 50 ? '...' : ''}"`, {
+  telegramLogger.info(`Pesan masuk diterima dari user ${senderId}`, {
     action: 'message_received',
     botId,
     externalMsgId,
     senderId,
     chatId,
+    textLength: text?.length || 0,
   });
 }
 

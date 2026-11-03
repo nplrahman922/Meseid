@@ -1,9 +1,8 @@
 import { Elysia } from "elysia";
 import { env } from "./config/env";
-import { authRoutes } from "./routes/auth";
-import { ownerRoutes } from "./routes/owner";
-import { adminRoutes } from "./routes/admin";
+import { apiRoutes } from "./routes";
 import { createModuleLogger, errorResponse } from "./logs";
+import { startAiModelSyncScheduler } from "./lib/scheduler";
 
 export const app = new Elysia()
   .onError(({ code, error, set, request }) => {
@@ -43,13 +42,13 @@ export const app = new Elysia()
   .get("/", () => "Meseid API Service")
   .get("/health", () => ({ status: "ok" }))
   .get("/api/health", () => ({ status: "ok" }))
-  .group("/api/auth", (app) => app.use(authRoutes))
-  .group("/api/owner", (app) => app.use(ownerRoutes))
-  .group("/api/admin", (app) => app.use(adminRoutes));
+  .use(apiRoutes);
 
 if (import.meta.main) {
   app.listen(env.PORT);
   console.log(
     `🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`
   );
+  startAiModelSyncScheduler(24);
 }
+

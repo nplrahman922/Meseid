@@ -539,7 +539,7 @@ describe("Part C: AI Usage, Quotas/Billing, Documents, Scheduling, Ingestion, Op
       await withSystemContext(async (tx) => {
         await tx`
           INSERT INTO inbound_messages (channel, external_message_id, owner_id, sender_id, status)
-          VALUES ('whatsapp', ${msgId}, ${ownerA.id}, '628111222333', 'received');
+          VALUES ('whatsapp', ${msgId}, ${ownerA.id}, '628111222333', 'processing');
         `;
       });
 
@@ -549,7 +549,7 @@ describe("Part C: AI Usage, Quotas/Billing, Documents, Scheduling, Ingestion, Op
         await withSystemContext(async (tx) => {
           await tx`
             INSERT INTO inbound_messages (channel, external_message_id, owner_id, sender_id, status)
-            VALUES ('whatsapp', ${msgId}, ${ownerA.id}, '628111222333', 'received');
+            VALUES ('whatsapp', ${msgId}, ${ownerA.id}, '628111222333', 'processing');
           `;
         });
       } catch (err: any) {

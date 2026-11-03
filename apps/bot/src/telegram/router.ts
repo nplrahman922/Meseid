@@ -11,6 +11,7 @@ telegramRouter.command('status', (ctx) => commandController.handleStatus(ctx));
 
 // 2. Rute Pesan Masuk
 telegramRouter.on('message:text', (ctx) => chatController.handleTextMessage(ctx));
+telegramRouter.on('edited_message:text', (ctx) => chatController.handleEditedTextMessage(ctx));
 telegramRouter.on('message:photo', (ctx) => chatController.handlePhotoMessage(ctx));
 
 // 3. Rute Interaksi Tombol (Callback Query)

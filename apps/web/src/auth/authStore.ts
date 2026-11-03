@@ -13,6 +13,7 @@ export interface AuthOwner {
 	business_type: string;
 	timezone: string;
 	status: string;
+	onboarding_completed?: boolean;
 }
 
 export interface AuthSubscription {
@@ -157,12 +158,18 @@ export async function requireAuth(expectedRole?: 'owner' | 'admin'): Promise<boo
 		return false;
 	}
 
+	// Owner guard: if onboarding is not completed, route to /overview
+	if (state.user.role === 'owner' && !state.owner?.onboarding_completed) {
+		window.location.replace('/overview');
+		return false;
+	}
+
 	return true;
 }
 
 /**
  * Route helper for /join-us:
- * If user is already authenticated, redirects them straight to their dashboard.
+ * If user is already authenticated, redirects them to /dashboard or /overview depending on onboarding status.
  */
 export async function redirectIfAuthenticated(): Promise<boolean> {
 	if (typeof window === 'undefined') return false;
@@ -172,7 +179,12 @@ export async function redirectIfAuthenticated(): Promise<boolean> {
 		if (state.user.role === 'admin') {
 			window.location.replace('/dashboard-admin');
 		} else {
-			window.location.replace('/dashboard');
+			const isCompleted = state.owner?.onboarding_completed ?? false;
+			if (!isCompleted) {
+				window.location.replace('/overview');
+			} else {
+				window.location.replace('/dashboard');
+			}
 		}
 		return true;
 	}

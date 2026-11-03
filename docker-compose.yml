@@ -51,6 +51,34 @@ services:
     logging: *default-logging
 
   # ---------------------------------------------------------------
+  # REDIS (In-Memory Key-Value, Cache & Sesi WhatsApp Baileys)
+  # ---------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - allkeys-lru
+    volumes:
+      - redisdata:/data
+    # Dibuka ke 127.0.0.1 agar development dari host/laptop tetap bisa terhubung
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    mem_limit: 128m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---------------------------------------------------------------
   # API (Bun + Elysia.js) - satu-satunya yang menyentuh data bisnis
   # ---------------------------------------------------------------
   api:
@@ -61,11 +89,15 @@ services:
       # Di dalam Docker, host database adalah nama service "postgres", bukan localhost
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       APP_DATABASE_URL: postgresql://meseid_app:${APP_DB_PASSWORD:-meseid_app_secret_pass_123}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
       # Alamat bot di jaringan internal (untuk mengirim pesan/pengingat)
       BOT_INTERNAL_URL: http://bot:3001
       ERROR_LOG_DIR: /app/logs/error/api
+      FRONTEND_URL: ${APP_URL:-http://localhost}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     # Dibuka ke localhost untuk debugging. HAPUS di produksi (web sudah meneruskan /api ke sini).
     ports:
@@ -89,16 +121,21 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_MODE: ${TELEGRAM_MODE:-polling}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      REDIS_URL: redis://redis:6379
       WA_SESSION_PATH: /data/wa-session
       ERROR_LOG_DIR: /app/logs/error/bot
     volumes:
-      # Sesi Baileys disimpan di volume terpisah agar tidak ikut hilang saat database di-reset
+      # Sesi Baileys disimpan di volume terpisah (fallback jika Redis tidak aktif)
       - wa-session:/data/wa-session
       - ./logs:/app/logs
     depends_on:
       api:
         condition: service_healthy
-    # Tidak ada ports: bot hanya dijangkau API lewat jaringan internal Docker (http://bot:3001)
+      redis:
+        condition: service_healthy
+    # Dibuka ke 127.0.0.1 untuk monitoring healthcheck dan scan QR WhatsApp dari browser
+    ports:
+      - "127.0.0.1:3001:3001"
     mem_limit: 512m
     restart: unless-stopped
     logging: *default-logging
@@ -117,8 +154,10 @@ services:
     logging: *default-logging
 
 volumes:
-  # Diberi nama tetap supaya mudah dihapus satu per satu tanpa memakai `down -v`
+  # Diberi nama tetap supaya mudah dihapus satu per satu atau bersih total saat `docker compose down -v`
   pgdata:
     name: meseid_pgdata
   wa-session:
     name: meseid_wa_session
+  redisdata:
+    name: meseid_redisdata

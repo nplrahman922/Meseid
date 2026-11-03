@@ -22,6 +22,7 @@ import {
   createAdminUser,
   provisionNewOwner,
   getMeOwnerDetails,
+  type OwnerRecord,
 } from "./auth.model";
 
 /**
@@ -137,6 +138,7 @@ export async function googleAuthCallbackController({
   let userRole: "owner" | "admin" = targetRole;
   let ownerId: string | null = null;
   let isNewTenant = false;
+  let existingOwner: OwnerRecord | null = null;
 
   if (existingUser) {
     if (existingUser.status === "suspended") {
@@ -160,7 +162,7 @@ export async function googleAuthCallbackController({
     }
 
     if (userRole === "owner") {
-      const existingOwner = await findOwnerByUserId(userId);
+      existingOwner = await findOwnerByUserId(userId);
 
       if (existingOwner) {
         if (existingOwner.status === "suspended") {
@@ -209,10 +211,20 @@ export async function googleAuthCallbackController({
 
   logAuthSuccess(userId, profile.email, userRole, ownerId, isNewTenant);
 
-  const redirectTo = userRole === "admin" ? "/dashboard-admin" : "/dashboard";
+  const stateReturnUrl = (verifiedState as any)?.returnUrl;
+  let redirectTo = userRole === "admin" ? "/dashboard-admin" : "/dashboard";
 
   const acceptHeader = (headers as any)?.accept || "";
   const isBrowserHtmlRequest = typeof acceptHeader === "string" && acceptHeader.includes("text/html");
+
+  if (userRole === "owner") {
+    const isCompleted = isNewTenant ? false : (existingOwner?.onboarding_completed ?? false);
+    if (stateReturnUrl) {
+      redirectTo = stateReturnUrl;
+    } else if (!isCompleted && isBrowserHtmlRequest) {
+      redirectTo = "/overview";
+    }
+  }
 
   const targetOrigin = (verifiedState as any)?.origin || env.FRONTEND_URL;
   if (query.redirect === "true" || isBrowserHtmlRequest) {

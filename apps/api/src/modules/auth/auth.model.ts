@@ -19,6 +19,7 @@ export interface OwnerRecord {
   timezone: string;
   status: string;
   suspended_reason: string | null;
+  onboarding_completed: boolean;
 }
 
 export interface OwnerSubscriptionDetails {
@@ -104,7 +105,7 @@ export async function findOwnerByUserId(
 ): Promise<OwnerRecord | null> {
   const runner = async (contextTx: Tx) => {
     return await contextTx<OwnerRecord[]>`
-      SELECT id, user_id, business_name, business_type, timezone, status, suspended_reason
+      SELECT id, user_id, business_name, business_type, timezone, status, suspended_reason, onboarding_completed
       FROM owners
       WHERE user_id = ${userId}::uuid;
     `;
@@ -203,7 +204,7 @@ export async function provisionNewOwner(
         'Admin Toko',
         'Kamu adalah asisten ramah toko yang melayani pertanyaan produk dan pesanan pelanggan.',
         'Kamu adalah asisten ramah toko.',
-        'gemini-1.5-flash',
+        'nvidia/nemotron-3.5-lightning-free',
         'open',
         true,
         '{}'::jsonb
@@ -253,6 +254,7 @@ export async function getMeOwnerDetails(userId: string): Promise<{
     business_type: string;
     timezone: string;
     status: string;
+    onboarding_completed: boolean;
   } | null;
   subscription: OwnerSubscriptionDetails | null;
 }> {
@@ -263,8 +265,9 @@ export async function getMeOwnerDetails(userId: string): Promise<{
       business_type: string;
       timezone: string;
       status: string;
+      onboarding_completed: boolean;
     }[]>`
-      SELECT id, business_name, business_type, timezone, status
+      SELECT id, business_name, business_type, timezone, status, onboarding_completed
       FROM owners
       WHERE user_id = ${userId}::uuid;
     `;
