@@ -51,8 +51,11 @@ ATURAN AUDIT KETAT BERDASARKAN PENERIMA:
    - Selama draf tidak mengandung ujaran kebencian/SARA berat atau konten berbahaya, obrolan santai/pantun dengan Owner 100% SAH dan WAJIB disetujui (is_valid = true, action_directive = "approve").
    - Asisten diperbolehkan memberikan saran atau asumsi di luar KB kepada Owner dengan catatan transparansi.
 2. JIKA PENERIMA ADALAH PELANGGAN/PEMBELI:
-   - ANTI-HALUSINASI KETAT: Draf balasan TIDAK BOLEH mengarang harga paket, diskon fiktif, garansi fiktif, atau syarat yang bertentangan dengan Knowledge Base resmi (violation_type = "hallucination", action_directive = "direct_guide").
-   - ATURAN KEBOCORAN DATA: Dilarang keras membocorkan biaya server internal AWS, target margin/BEP, data keuangan rahasia, atau SOP rahasia kepada pelanggan (violation_type = "leakage", action_directive = "refuse_politely").
+   - HAK INFORMASI PRODUK & PRICELIST RESMI:
+     * Seluruh daftar produk, fitur, dan harga jual/pricelist yang tercantum dalam Knowledge Base resmi di atas adalah INFORMASI PUBLIK untuk pelanggan.
+     * Admin toko WAJIB dan BERHAK membagikan informasi harga jual, paket, dan rincian pricelist yang tercantum di Knowledge Base kepada pelanggan. Memberikan harga jual resmi dari Knowledge Base BUKAN kebocoran data dan WAJIB disetujui (is_valid = true, action_directive = "approve").
+   - ANTI-HALUSINASI KETAT: Draf balasan TIDAK BOLEH mengarang harga paket di luar Knowledge Base, diskon fiktif (misal diskon 90%), garansi fiktif, atau syarat yang bertentangan dengan Knowledge Base resmi (violation_type = "hallucination", action_directive = "direct_guide").
+   - ATURAN KEBOCORAN DATA RAHASIA: Dilarang keras membocorkan biaya modal kulakan/HPP, biaya server internal AWS, target margin/BEP, data keuangan rahasia perusahaan, atau SOP rahasia kepada pelanggan (violation_type = "leakage", action_directive = "refuse_politely"). Harga jual produk resmi yang tertera di KB BUKAN data rahasia.
 3. KESESUAIAN PERTANYAAN: Draf balasan harus relevan dan menjawab pertanyaan pengguna secara sopan.
 4. INTEGRITAS FORMAT & ANTI-CORRUPTED JSON: Draf balasan harus berupa teks percakapan alami manusia yang siap dikirim. Draf TIDAK BOLEH mengandung sintaks mentah JSON seperti '{"reply":', kurung kurawal pembuka {, tanda petik JSON, atau respons terpotong. Jika draf balasan mengandung kode/sintaks JSON mentah, is_valid = false (violation_type = "corrupted", action_directive = "sanitize_clean"), dan berikan "corrected_reply" berupa teks bersih manusia tanpa kurung kurawal atau sintaks kode.
 5. ANTI-COT & BAHASA KOMUNIKASI: Draf balasan WAJIB berupa kalimat percakapan langsung kepada pengguna dalam Bahasa Indonesia. Draf DILARANG KERAS berupa monolog proses berpikir internal (Chain-of-Thought) dalam bahasa Inggris atau refleksi diri model (misalnya diawali "The user...", "He wants me to...", "I need to balance...", "Write a new reply...", dll.). Jika draf berupa monolog atau berbahasa Inggris alih-alih menyapa langsung pengguna, is_valid = false (violation_type = "corrupted", action_directive = "sanitize_clean"), dan berikan "corrected_reply" bahasa Indonesia yang langsung menjawab pengguna.
@@ -188,6 +191,19 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
               critique = "Pemilik usaha (Owner) berhak melakukan obrolan santai, pantun, dan candaan dengan asistennya.";
               correctedReply = null;
             }
+          }
+        }
+
+        // Lindungi harga jual resmi pelanggan dari false-positive leakage:
+        if (isCustomer && (violationType === "leakage" || violationType === "hallucination")) {
+          const isTrueInternalLeakage = /aws|server internal|kulakan|margin laba|bep|modal dapur|rekening pribadi/i.test(input.draftReply);
+          const hasPricelistContext = Boolean(input.knowledgeBaseContext && /harga|pricelist|paket|500k|99\.000/i.test(input.knowledgeBaseContext));
+          if (!isTrueInternalLeakage && hasPricelistContext && /harga|pricelist|biaya|paket|layanan/i.test(input.userMessage)) {
+            isValid = true;
+            violationType = null;
+            actionDirective = "approve";
+            critique = "Informasi harga jual resmi dan pricelist sesuai dengan Knowledge Base publik.";
+            correctedReply = null;
           }
         }
 

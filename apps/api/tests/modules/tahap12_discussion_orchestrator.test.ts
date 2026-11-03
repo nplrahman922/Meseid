@@ -175,4 +175,49 @@ Tetap semangat walau deadline padat!`;
     expect(result.violationType).toBe("corrupted");
     expect(result.actionDirective).toBe("sanitize_clean");
   });
+
+  it("TEST 12.11: GuardrailService WAJIB meloloskan (approve) pricelist resmi dari Knowledge Base untuk Pelanggan", async () => {
+    const guardrail = new GuardrailService();
+    const kbContext = `• [PRODUK] Paket Starter Cloud: Paket Starter seharga Rp 99.000/bln sudah termasuk SSL dan 1 domain.
+• [HARGA PRODUK] Pricelist Harga jasa layanan jasting: Harga layanan jasting:
+- Website Company Profile : Open only 500k non negotiable
+- Pembuatan sistem informasi berbasis web : Open only 1,5 jt - 10 jt negotiable
+- Pembuatan layanan aplikasi android : Open only 3jt - 50 jt negotiable`;
+
+    const legitimateDraft = `Berikut adalah pricelist resmi layanan Jasting:
+• Website Company Profile: Rp 500.000 (non-negotiable)
+• Pembuatan Sistem Informasi Web: Rp 1.500.000 - Rp 10.000.000 (negotiable)
+• Pembuatan Layanan Aplikasi Android: Rp 3.000.000 - Rp 50.000.000 (negotiable)
+
+Silakan hubungi kami jika ada pertanyaan lebih lanjut ya Kak!`;
+
+    const result = await guardrail.validateDraftReply({
+      userMessage: "oke bisa kamu beritahukan kepadaku isi dari pricelistnya ?",
+      draftReply: legitimateDraft,
+      persona: "admin",
+      knowledgeBaseContext: kbContext,
+      businessName: "Jasting",
+    });
+
+    expect(result.isValid).toBe(true);
+    expect(result.actionDirective).toBe("approve");
+    expect(result.violationType).toBeNull();
+  });
+
+  it("TEST 12.12: GuardrailService TETAP MENOLAK diskon fiktif atau kebocoran biaya server internal ke Pelanggan", async () => {
+    const guardrail = new GuardrailService();
+    const fakeDiscountDraft = `Halo Kak, kami ada diskon 90% khusus hari ini dan garansi seumur hidup untuk semua paket!`;
+
+    const result = await guardrail.validateDraftReply({
+      userMessage: "Ada diskon ga Kak?",
+      draftReply: fakeDiscountDraft,
+      persona: "admin",
+      knowledgeBaseContext: "• [PRODUK] Paket Starter Cloud: Rp 99.000/bln.",
+      businessName: "Jasting",
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.violationType).toBe("hallucination");
+    expect(result.actionDirective).toBe("direct_guide");
+  });
 });
