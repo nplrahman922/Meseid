@@ -1,13 +1,16 @@
 import type { BusinessContext } from '../types';
+import type { ModelProfile } from '../eval/eval.types';
 
 export class PersonaPromptBuilder {
   /**
    * Menyusun instruksi sistem lengkap untuk pemanggilan model AI,
    * membedakan peran Asisten Pemilik Usaha (Partner Serbaguna) vs Admin Toko (Front-Desk Resepsionis).
+   * Mendukung penyesuaian gaya prompt (few-shot, strict json) sesuai ModelProfile.
    */
   static buildSystemPrompt(
     persona: 'assistant' | 'admin',
-    businessContext?: BusinessContext
+    businessContext?: BusinessContext,
+    modelProfile?: ModelProfile
   ): string {
     const bizName = businessContext?.businessName || 'Usaha Saya';
     const bizType = businessContext?.businessType || 'bisnis';
@@ -105,6 +108,10 @@ ATURAN FORMAT & TIPOGRAFI BALASAN (AGAR RAPI DI CHAT WHATSAPP/TELEGRAM):
 4. GAYA FORMAT CHAT:
    - Gunakan format *teks tebal* (satu bintang untuk WhatsApp), _teks miring_, dan \`kode singkat\`.
 
-- RESPON HARUS LANGSUNG BERUPA OBJEK JSON YANG DIAWALI { DAN DIAKHIRI }.`;
+- RESPON HARUS LANGSUNG BERUPA OBJEK JSON YANG DIAWALI { DAN DIAKHIRI }.${
+      modelProfile?.requiresFewShot
+        ? `\n\nCONTOH FORMAT OUTPUT RESMI (WAJIB DIIKUTI PERSIS):\nContoh 1 (Tanya Info):\n{"reply": "Halo kak! Menu Nasi Ayam Geprek harganya Rp 22.000 ya kak.", "intent": "inquiry", "sentiment": "positive", "summary": "Tanya harga menu", "transactions": [], "transaction": null}\n\nContoh 2 (Catat Keuangan):\n{"reply": "Siap Bos, biaya bensin Rp 25.000 telah dicatat.", "intent": "expense", "sentiment": "neutral", "summary": "Catat bensin 25rb", "transactions": [{"type": "expense", "amount": 25000, "category": "Operasional", "notes": "Bensin"}], "transaction": {"type": "expense", "amount": 25000, "category": "Operasional", "notes": "Bensin"}}`
+        : ''
+    }`;
   }
 }

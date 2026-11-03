@@ -56,7 +56,7 @@ export class EvalRunner {
       const tc = dataset[i];
       options?.onProgress?.(i + 1, dataset.length, tc.name);
 
-      const systemPrompt = PersonaPromptBuilder.buildSystemPrompt(tc.persona, tc.businessContext);
+      const systemPrompt = PersonaPromptBuilder.buildSystemPrompt(tc.persona, tc.businessContext, profile);
       const messages = [
         { role: 'system' as const, content: systemPrompt },
         { role: 'user' as const, content: tc.userMessage },
