@@ -73,6 +73,15 @@
 		businessInputElement?.focus();
 	});
 
+	$effect(() => {
+		if (initialBusinessName && !businessName) {
+			businessName = initialBusinessName;
+			businessType = initialBusinessType || 'kuliner';
+			customCategory = initialCustomCategory || '';
+			businessDescription = initialBusinessDescription || '';
+		}
+	});
+
 	function handleSubmit(e?: Event) {
 		if (e) e.preventDefault();
 		if (!isValid) return;

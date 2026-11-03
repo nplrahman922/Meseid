@@ -10,7 +10,7 @@ export async function getOnboardingDetail(
 ): Promise<OnboardingDetailResult> {
   const [owner] = await tx`
     SELECT o.business_name, o.business_type, o.custom_business_type, o.business_description,
-           o.phone, o.onboarding_completed, u.email as user_name
+           o.phone, o.onboarding_completed, o.owner_name, u.email as user_email
     FROM owners o
     JOIN users u ON u.id = o.user_id
     WHERE o.id = ${ownerId}::uuid;
@@ -72,7 +72,7 @@ export async function getOnboardingDetail(
 
   return {
     onboardingCompleted: owner?.onboarding_completed ?? false,
-    userName: owner?.user_name || "",
+    userName: owner?.owner_name || owner?.business_name || owner?.user_email || "",
     businessName: owner?.business_name || "",
     businessType: owner?.business_type || "kuliner",
     customCategory: owner?.custom_business_type || null,

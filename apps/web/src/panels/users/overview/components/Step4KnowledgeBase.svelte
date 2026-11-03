@@ -72,6 +72,18 @@
 		}
 	});
 
+	$effect(() => {
+		if (initialItems.length > 0 && cards.length <= 1 && (!cards[0]?.title && !cards[0]?.description)) {
+			cards = initialItems.map((item, idx) => ({
+				id: `kb-card-${idx + 1}-${Date.now()}`,
+				title: item.title || '',
+				category: item.category || '',
+				description: item.description || '',
+				onlyAssistant: item.onlyAssistant ?? true
+			}));
+		}
+	});
+
 	// Tambah kotak form baru
 	function handleAddCard() {
 		const newCard: KnowledgeBaseCard = {

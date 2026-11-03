@@ -53,6 +53,18 @@
 			: [];
 	});
 
+	$effect(() => {
+		if (initialBotName && !botName) {
+			botName = initialBotName;
+		}
+		if (initialSpeakingStyles && initialSpeakingStyles.length > 0 && speakingStyles.length === 0) {
+			speakingStyles = [...initialSpeakingStyles];
+		}
+		if (initialCustomRules && initialCustomRules.length > 0 && customRules.length === 0) {
+			customRules = [...initialCustomRules];
+		}
+	});
+
 	// Tambah gaya bicara baru
 	function addSpeakingStyle() {
 		if (newStyleInput.trim()) {

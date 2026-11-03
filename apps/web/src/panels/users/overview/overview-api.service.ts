@@ -93,9 +93,9 @@ export async function fetchOnboardingDetail(): Promise<OverviewData | null> {
 
 		if (!res.ok) return null;
 		const json = await res.json();
-		if (!json.success || !json.data) return null;
-
 		const d = json.data;
+		if (!d || (json.status !== 'ok' && !json.success)) return null;
+
 		return {
 			userName: d.userName || '',
 			businessName: d.businessName || '',

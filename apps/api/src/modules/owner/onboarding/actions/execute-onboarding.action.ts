@@ -22,6 +22,7 @@ export async function executeOnboardingTransaction(
   const [updatedOwner] = await tx`
     UPDATE owners
     SET business_name = ${input.businessName.trim()},
+        owner_name = ${input.userName?.trim() || null},
         business_type = ${input.businessType},
         custom_business_type = ${input.customCategory?.trim() || null},
         business_description = ${input.businessDescription?.trim() || null},

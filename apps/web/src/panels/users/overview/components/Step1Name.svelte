@@ -17,6 +17,12 @@
 		inputElement?.focus();
 	});
 
+	$effect(() => {
+		if (initialName && !name) {
+			name = initialName;
+		}
+	});
+
 	function handleSubmit(e?: Event) {
 		if (e) e.preventDefault();
 		if (!isValid) return;
