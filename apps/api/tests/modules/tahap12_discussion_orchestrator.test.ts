@@ -148,4 +148,31 @@ Tetap semangat walau deadline padat!`;
     expect(result.actionDirective).toBe("approve");
     expect(result.violationType).toBeNull();
   });
+
+  it("TEST 12.9: AiCotCleaner.isEnglishMonologue mendeteksi monolog CoT kasus insiden terakhir", () => {
+    const cot1 = `The user (Tuan Muda, the owner of Jasting) is continuing the pantun game. He gave:\n\n"Ikan lele naik motor\nDi jalan kelindas angkot\nLanjutkan bro"\n\nHe wants me to continue the pantun.`;
+    const cot2 = `I need to balance: the owner wants a pantun continuation. I should comply...`;
+    const indonesianReply = `Siap Tuan Muda, Enbee lanjutkan pantunnya ya! 🎵 Ikan lele naik motor, jangan ngebut nanti kekokop!`;
+
+    expect(AiCotCleaner.isEnglishMonologue(cot1)).toBe(true);
+    expect(AiCotCleaner.isEnglishMonologue(cot2)).toBe(true);
+    expect(AiCotCleaner.isEnglishMonologue(indonesianReply)).toBe(false);
+  });
+
+  it("TEST 12.10: GuardrailService MENOLAK KERAS monolog bahasa Inggris meskipun penerima adalah Owner", async () => {
+    const guardrail = new GuardrailService();
+    const cotDraft = `The user (Tuan Muda, the owner of Jasting) is continuing the pantun game. He gave:\n\n"Ikan lele naik motor"\n\nHe wants me to continue the pantun. I need to balance the request.`;
+
+    const result = await guardrail.validateDraftReply({
+      userMessage: "Ikan lele naik motor, lanjutkan bro",
+      draftReply: cotDraft,
+      persona: "assistant",
+      businessName: "Jasting",
+    });
+
+    // Monolog bahasa Inggris mutlak DITOLAK (corrupted)
+    expect(result.isValid).toBe(false);
+    expect(result.violationType).toBe("corrupted");
+    expect(result.actionDirective).toBe("sanitize_clean");
+  });
 });

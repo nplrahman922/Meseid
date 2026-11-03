@@ -30,9 +30,8 @@ export async function chatWithFallback(
       candidateFallbacks = freeModels.map((m) => m.id);
     } catch {
       candidateFallbacks = [
-        'minimax/minimax-m3.1-flash',
-        'poolside/laguna-s-2.1-free',
-        'reflection/beam-free',
+        'nvidia/nemotron-3.5-lightning-free',
+        'gpt-4o-mini',
       ];
     }
   }

@@ -55,6 +55,7 @@ ATURAN AUDIT KETAT BERDASARKAN PENERIMA:
    - ATURAN KEBOCORAN DATA: Dilarang keras membocorkan biaya server internal AWS, target margin/BEP, data keuangan rahasia, atau SOP rahasia kepada pelanggan (violation_type = "leakage", action_directive = "refuse_politely").
 3. KESESUAIAN PERTANYAAN: Draf balasan harus relevan dan menjawab pertanyaan pengguna secara sopan.
 4. INTEGRITAS FORMAT & ANTI-CORRUPTED JSON: Draf balasan harus berupa teks percakapan alami manusia yang siap dikirim. Draf TIDAK BOLEH mengandung sintaks mentah JSON seperti '{"reply":', kurung kurawal pembuka {, tanda petik JSON, atau respons terpotong. Jika draf balasan mengandung kode/sintaks JSON mentah, is_valid = false (violation_type = "corrupted", action_directive = "sanitize_clean"), dan berikan "corrected_reply" berupa teks bersih manusia tanpa kurung kurawal atau sintaks kode.
+5. ANTI-COT & BAHASA KOMUNIKASI: Draf balasan WAJIB berupa kalimat percakapan langsung kepada pengguna dalam Bahasa Indonesia. Draf DILARANG KERAS berupa monolog proses berpikir internal (Chain-of-Thought) dalam bahasa Inggris atau refleksi diri model (misalnya diawali "The user...", "He wants me to...", "I need to balance...", "Write a new reply...", dll.). Jika draf berupa monolog atau berbahasa Inggris alih-alih menyapa langsung pengguna, is_valid = false (violation_type = "corrupted", action_directive = "sanitize_clean"), dan berikan "corrected_reply" bahasa Indonesia yang langsung menjawab pengguna.
 
 KLASIFIKASI "action_directive":
 - "approve": Draf balasan sudah aman, benar, dan sopan (is_valid = true).
@@ -96,6 +97,7 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
       trimmedDraft.includes("```json");
 
     const hasCotLeakage =
+      AiCotCleaner.isEnglishMonologue(trimmedDraft) ||
       /The user is asking\b/i.test(trimmedDraft) ||
       /Let me review\b/i.test(trimmedDraft) ||
       /In my previous response\b/i.test(trimmedDraft) ||

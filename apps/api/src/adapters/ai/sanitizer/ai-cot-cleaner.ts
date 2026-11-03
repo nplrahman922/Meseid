@@ -5,10 +5,11 @@
  */
 export class AiCotCleaner {
   private static readonly COT_START_PATTERNS = [
-    /The user is asking[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
+    /The user (?:is asking|\([^)]*\) is|\b)[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
+    /He wants me to[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
     /Let me review[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
     /Format requirements:[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
-    /I need to (?:respond|answer|provide)[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
+    /I need to (?:respond|answer|provide|balance)[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
   ];
 
   private static readonly META_REASONING_PATTERNS = [
@@ -65,7 +66,7 @@ export class AiCotCleaner {
     }
 
     // 5. Jika teks masih diawali kalimat meta bahasa Inggris murni
-    if (/^(?:The user is asking|Write a new reply|The improvement direction|So the auditor|This is contradictory)\b/i.test(text)) {
+    if (/^(?:The user|He wants|She wants|I need to|Write a new reply|The improvement direction|So the auditor|This is contradictory|User asks)\b/i.test(text)) {
       const indonesianIntro = text.search(/\b(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Hai)\b/i);
       if (indonesianIntro > 0) {
         text = text.slice(indonesianIntro).trim();
@@ -73,5 +74,20 @@ export class AiCotCleaner {
     }
 
     return text;
+  }
+
+  /**
+   * Mendeteksi apakah suatu teks murni monolog CoT/Scratchpad bahasa Inggris.
+   */
+  static isEnglishMonologue(rawText: string): boolean {
+    if (!rawText || typeof rawText !== 'string') return false;
+    const trimmed = rawText.trim();
+    if (
+      /^(?:The user\b|He wants\b|She wants\b|I need to\b|Let me\b|Write a new reply\b|The improvement direction\b|So the auditor\b|This is contradictory\b|In my previous\b|Format requirements:\b|Here's a thinking process:|User asks\b)/i.test(trimmed) ||
+      /\b(?:The user is asking|Let me review|Let me compose the reply:|In my previous response)\b/i.test(trimmed)
+    ) {
+      return true;
+    }
+    return false;
   }
 }

@@ -1,6 +1,6 @@
 import type { ModelProfile } from './eval.types';
 
-export const DEFAULT_FALLBACK_FREE_MODEL = 'reflection/beam-free';
+export const DEFAULT_FALLBACK_FREE_MODEL = 'nvidia/nemotron-3.5-lightning-free';
 
 export const INITIAL_MODEL_PROFILES: ModelProfile[] = [
   // 10 Model Berbayar Unggulan (VLM, LMM, LLM)
@@ -157,7 +157,7 @@ export const INITIAL_MODEL_PROFILES: ModelProfile[] = [
     requiresFewShot: false,
     supportsJsonMode: false,
     stripThinkingTags: false,
-    fallbackModelId: 'reflection/beam-free',
+    fallbackModelId: 'gpt-4o-mini',
   },
   {
     modelId: 'inclusionai/ling-3.1-flash-1019',
@@ -171,7 +171,7 @@ export const INITIAL_MODEL_PROFILES: ModelProfile[] = [
     requiresFewShot: true,
     supportsJsonMode: false,
     stripThinkingTags: false,
-    fallbackModelId: 'reflection/beam-free',
+    fallbackModelId: 'nvidia/nemotron-3.5-lightning-free',
   },
   {
     modelId: 'reflection/beam-free',

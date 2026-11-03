@@ -127,29 +127,67 @@ export class DiscussionOrchestrator {
 
       let finalReply = AiCotCleaner.cleanThinkingArtifacts(refinedResult.reply);
 
-      // Safety Guard: Jika draf Putaran 2 masih mengandung monolog CoT/meta-reasoning bahasa Inggris
-      if (/^(?:The user is asking|Write a new reply|The improvement direction|So the auditor|This is contradictory)\b/i.test(finalReply)) {
-        orchestratorLogger.warn("[AI-DISKUSI] Draf Putaran 2 gagal membersihkan CoT. Menggunakan fallback draf asli yang disanitasi.");
-        finalReply = AiCotCleaner.cleanThinkingArtifacts(draftReply);
-      }
-
-      orchestratorLogger.info("Metode AI Diskusi: Draf 2 berhasil disempurnakan", {
-        roundsCount: 2,
-        totalLatencyMs: Date.now() - startTime,
+      // LANGKAH 4: Auditor AI Memvalidasi Ulang Draf 2 (Audit Putaran 2)
+      const auditRound2 = await guardrailService.validateDraftReply({
+        userMessage: input.userMessage,
+        draftReply: finalReply,
+        persona: input.persona,
+        knowledgeBaseContext: input.chatContext.knowledgeBaseContext,
+        businessName: input.owner.business_name,
       });
 
+      // 4A. Jika Draf 2 Lolos Audit -> Kirim Draf 2
+      if (auditRound2.isValid && !AiCotCleaner.isEnglishMonologue(finalReply)) {
+        orchestratorLogger.info("Metode AI Diskusi: Draf 2 sukses lolos validasi ulang (Langkah 4)", {
+          roundsCount: 2,
+          totalLatencyMs: Date.now() - startTime,
+        });
+        return {
+          reply: finalReply,
+          aiResult: refinedResult,
+          audit: auditRound2,
+          roundsCount: 2,
+        };
+      }
+
+      // 4B. Jika Draf 2 MASIH GAGAL -> Jalankan Graceful Rejection Fallback
+      orchestratorLogger.warn(
+        `[AI-DISKUSI] Draf 2 tetap tidak valid (${auditRound2.violationType}). Mengaktifkan Graceful Fallback.`,
+        {
+          ownerId: input.owner.owner_id,
+          violationType: auditRound2.violationType,
+          critique: auditRound2.critique,
+        }
+      );
+
+      // Prioritas 1: Gunakan correctedReply dari Auditor jika ada dan bersih
+      if (auditRound2.correctedReply && !AiCotCleaner.isEnglishMonologue(auditRound2.correctedReply)) {
+        return {
+          reply: auditRound2.correctedReply,
+          aiResult: refinedResult,
+          audit: auditRound2,
+          roundsCount: 2,
+        };
+      }
+
+      // Prioritas 2: Balasan penolakan santun / pengakuan keterbatasan sistem sesuai persona
+      const gracefulFallbackReply = isCustomer
+        ? "Mohon maaf Kak, saat ini kami belum dapat memberikan informasi yang akurat mengenai hal tersebut. Silakan tanyakan hal lain seputar produk atau layanan resmi kami ya Kak."
+        : "Mohon maaf Tuan Muda, asisten sedang mengalami sedikit kendala dalam merumuskan balasan yang tepat untuk permintaan ini. Apakah ada kebutuhan bisnis atau hal lain yang bisa asisten bantu?";
+
       return {
-        reply: finalReply,
+        reply: gracefulFallbackReply,
         aiResult: refinedResult,
-        audit,
+        audit: auditRound2,
         roundsCount: 2,
       };
     } catch (refineErr: any) {
       orchestratorLogger.error(`Gagal pada putaran diskusi AI: ${refineErr.message}`, refineErr);
-      // Fallback ke draf pertama yang sudah dibersihkan atau corrected reply
-      const fallbackReply = audit.correctedReply || draftReply;
+      const safeEmergencyReply = isCustomer
+        ? "Mohon maaf Kak, sistem kami sedang mengalami sedikit gangguan. Silakan coba sesaat lagi ya."
+        : "Mohon maaf Tuan Muda, terjadi sedikit gangguan koneksi pada sistem asisten saat memproses balasan.";
       return {
-        reply: fallbackReply,
+        reply: safeEmergencyReply,
         aiResult,
         audit,
         roundsCount: 1,
