@@ -5,10 +5,19 @@
  */
 export class AiCotCleaner {
   private static readonly COT_START_PATTERNS = [
-    /The user is asking[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak)/i,
-    /Let me review[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak)/i,
-    /Format requirements:[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak)/i,
-    /I need to (?:respond|answer|provide)[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak)/i,
+    /The user is asking[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
+    /Let me review[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
+    /Format requirements:[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
+    /I need to (?:respond|answer|provide)[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
+  ];
+
+  private static readonly META_REASONING_PATTERNS = [
+    /.*?baikan di atas dengan ramah dan rapi!["”]?\s*[—–-]\s*/gi,
+    /Write a new reply that fully complies[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)/i,
+    /The improvement direction says:[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)/i,
+    /So the auditor wants me to[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)/i,
+    /This is contradictory[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)/i,
+    /I think the safest interpretation[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)/i,
   ];
 
   /**
@@ -39,14 +48,24 @@ export class AiCotCleaner {
       if (pattern.test(text)) {
         text = text.replace(pattern, (matched) => {
           // Ambil kata pembuka bahasa Indonesia yang tertangkap di akhir pola
-          const lastWords = matched.match(/(Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak)[\s\S]*$/i);
+          const lastWords = matched.match(/(Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)[\s\S]*$/i);
           return lastWords ? lastWords[0] : '';
         }).trim();
       }
     }
 
-    // 4. Jika teks masih diawali kalimat meta bahasa Inggris murni
-    if (/^The user is asking\b/i.test(text)) {
+    // 4. Potong pola-pola meta-reasoning / prompt echo auditor
+    for (const pattern of this.META_REASONING_PATTERNS) {
+      if (pattern.test(text)) {
+        text = text.replace(pattern, (matched) => {
+          const matchIndonesian = matched.match(/(Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)[\s\S]*$/i);
+          return matchIndonesian ? matchIndonesian[0] : '';
+        }).trim();
+      }
+    }
+
+    // 5. Jika teks masih diawali kalimat meta bahasa Inggris murni
+    if (/^(?:The user is asking|Write a new reply|The improvement direction|So the auditor|This is contradictory)\b/i.test(text)) {
       const indonesianIntro = text.search(/\b(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Hai)\b/i);
       if (indonesianIntro > 0) {
         text = text.slice(indonesianIntro).trim();

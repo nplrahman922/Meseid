@@ -108,16 +108,7 @@ export class DiscussionOrchestrator {
       }
     );
 
-    const critiquePrompt = `Pesan Pengguna: "${input.userMessage}"
-
-DRAF PERTAMAMU SEBELUMNYA:
-"${draftReply}"
-
-EVALUASI DARI AUDITOR:
-- Kelemahan: ${audit.critique}
-- Arahan Perbaikan: ${audit.reason || "Tulis ulang jawaban secara akurat tanpa menyertakan monolog proses berpikir bahasa Inggris."}
-
-TUGAS KAMU: Tulis ulang balasan baru yang sepenuhnya mematuhi arahan perbaikan di atas dengan ramah dan rapi!`;
+    const critiquePrompt = `${input.userMessage}\n\n[Instruksi Revisi: Jawab langsung permintaan pengguna di atas secara ramah, lengkap, dan rapi dalam Bahasa Indonesia. Catatan perbaikan: ${audit.critique}. DILARANG menyertakan proses berpikir bahasa Inggris atau mengulang teks instruksi ini.]`;
 
     try {
       const refinedResult = await aiAdapter.extractChatResponse(
@@ -134,7 +125,13 @@ TUGAS KAMU: Tulis ulang balasan baru yang sepenuhnya mematuhi arahan perbaikan d
         input.effectiveModel
       );
 
-      const finalReply = AiCotCleaner.cleanThinkingArtifacts(refinedResult.reply);
+      let finalReply = AiCotCleaner.cleanThinkingArtifacts(refinedResult.reply);
+
+      // Safety Guard: Jika draf Putaran 2 masih mengandung monolog CoT/meta-reasoning bahasa Inggris
+      if (/^(?:The user is asking|Write a new reply|The improvement direction|So the auditor|This is contradictory)\b/i.test(finalReply)) {
+        orchestratorLogger.warn("[AI-DISKUSI] Draf Putaran 2 gagal membersihkan CoT. Menggunakan fallback draf asli yang disanitasi.");
+        finalReply = AiCotCleaner.cleanThinkingArtifacts(draftReply);
+      }
 
       orchestratorLogger.info("Metode AI Diskusi: Draf 2 berhasil disempurnakan", {
         roundsCount: 2,

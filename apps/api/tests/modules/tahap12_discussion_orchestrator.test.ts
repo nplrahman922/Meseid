@@ -113,4 +113,39 @@ Let me compose the reply:
     expect(result.actionDirective).toBe("approve");
     expect(result.violationType).toBeNull();
   });
+
+  it("TEST 12.7: AiCotCleaner sukses memangkas meta-reasoning dan prompt echo kasus pantun", () => {
+    const rawMetaText = `baikan di atas dengan ramah dan rapi!" — Write a new reply that fully complies with the improvement direction, friendly and neat.
+
+The improvement direction says: "Balasan tidak sesuai dengan konteks pertanyaan dan tidak memberikan informasi yang diharapkan oleh pemilik usaha." — The reply doesn't match the context of the question.
+
+So the auditor wants me to... hmm. The user's question was actually "Lah kan lu yg jawab ya, masa gw yang lanjutin?"
+This is contradictory.
+
+Siap Tuan Muda, pantunnya saya lanjutkan ya! 🎵
+Ikan hiu makan tomat,
+Tetap semangat walau deadline padat!`;
+
+    const cleaned = AiCotCleaner.cleanThinkingArtifacts(rawMetaText);
+    expect(cleaned).toContain("Siap Tuan Muda, pantunnya saya lanjutkan ya!");
+    expect(cleaned).toContain("Tetap semangat walau deadline padat!");
+    expect(cleaned).not.toContain("Write a new reply");
+    expect(cleaned).not.toContain("The improvement direction says");
+    expect(cleaned).not.toContain("So the auditor wants me to");
+  });
+
+  it("TEST 12.8: GuardrailService WAJIB meloloskan candaan dan pantun santai untuk Owner", async () => {
+    const guardrail = new GuardrailService();
+    const result = await guardrail.validateDraftReply({
+      userMessage: "Lah kan lu yg jawab ya, masa gw yang lanjutin?",
+      draftReply: "Siap Tuan Muda, ini lanjutannya! 🎵 Ikan lele makan tempe, yuk santai dulu jangan capek-capek!",
+      persona: "assistant",
+      businessName: "Jasting",
+    });
+
+    // Candaan dan pantun dengan owner tidak boleh dianggap 'inappropriate' bisnis
+    expect(result.isValid).toBe(true);
+    expect(result.actionDirective).toBe("approve");
+    expect(result.violationType).toBeNull();
+  });
 });

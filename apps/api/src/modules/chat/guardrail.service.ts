@@ -45,9 +45,10 @@ ${input.knowledgeBaseContext || "(Tidak ada dokumen KB terlampir)"}
 
 ATURAN AUDIT KETAT BERDASARKAN PENERIMA:
 1. JIKA PENERIMA ADALAH PEMILIK USAHA/OWNER:
-   - Pemilik usaha adalah BOS dan mitra kerja utama. Pemilik BERHAK menanyakan topik apa saja: pembukuan, data rahasia internal (biaya modal kulakan, margin laba, biaya server), serta bantuan umum serbaguna (seperti penulisan kode Python/HTML, analisis ide, strategi bisnis, atau sains).
-   - DILARANG KERAS menandai "hallucination" hanya karena topik tersebut tidak ada di Knowledge Base toko!
+   - Pemilik usaha adalah BOS dan mitra kerja utama. Pemilik BERHAK menanyakan topik apa saja: pembukuan, data rahasia internal (biaya modal kulakan, margin laba, biaya server), bantuan umum serbaguna (seperti coding Python/HTML, analisis ide, strategi bisnis), serta OBROLAN SANTAI, CANDAAN, PANTUN, PUISI, dan SAPAAN HANGAT.
+   - DILARANG KERAS menandai "inappropriate" atau "hallucination" hanya karena obrolan bersifat santai atau non-bisnis! Asisten cerdas WAJIB fleksibel, bersahabat, dan melayani candaan/pantun Owner dengan hangat.
    - DILARANG KERAS menandai "leakage" jika penerima adalah PEMILIK USAHA/OWNER! Membuka data modal atau margin kepada bos adalah HAK pemilik usaha dan WAJIB disetujui (is_valid = true, action_directive = "approve").
+   - Selama draf tidak mengandung ujaran kebencian/SARA berat atau konten berbahaya, obrolan santai/pantun dengan Owner 100% SAH dan WAJIB disetujui (is_valid = true, action_directive = "approve").
    - Asisten diperbolehkan memberikan saran atau asumsi di luar KB kepada Owner dengan catatan transparansi.
 2. JIKA PENERIMA ADALAH PELANGGAN/PEMBELI:
    - ANTI-HALUSINASI KETAT: Draf balasan TIDAK BOLEH mengarang harga paket, diskon fiktif, garansi fiktif, atau syarat yang bertentangan dengan Knowledge Base resmi (violation_type = "hallucination", action_directive = "direct_guide").
@@ -165,13 +166,27 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
           correctedReply = AiCotCleaner.cleanThinkingArtifacts(input.draftReply);
         }
 
-        // Aturan Mutlak Hak Akses Owner: Owner BERHAK mengetahui modal/biaya operasional internal
-        if (!isCustomer && violationType === "leakage") {
-          isValid = true;
-          violationType = null;
-          actionDirective = "approve";
-          critique = "Pemilik usaha (Owner) memiliki hak akses penuh terhadap seluruh data internal.";
-          correctedReply = null;
+        // Aturan Mutlak Hak Akses & Obrolan Santai Owner:
+        if (!isCustomer) {
+          // 1. Owner berhak mengetahui seluruh data internal / modal
+          if (violationType === "leakage") {
+            isValid = true;
+            violationType = null;
+            actionDirective = "approve";
+            critique = "Pemilik usaha (Owner) memiliki hak akses penuh terhadap seluruh data internal.";
+            correctedReply = null;
+          }
+          // 2. Owner berhak bercanda, berpantun, atau santai tanpa dihakimi "tidak pantas untuk konteks bisnis"
+          if (violationType === "inappropriate" || violationType === "hallucination") {
+            const hasSevereHarm = /hate|sara|porno|vulgar|ilegal|senjata/i.test(critique);
+            if (!hasSevereHarm) {
+              isValid = true;
+              violationType = null;
+              actionDirective = "approve";
+              critique = "Pemilik usaha (Owner) berhak melakukan obrolan santai, pantun, dan candaan dengan asistennya.";
+              correctedReply = null;
+            }
+          }
         }
 
         // Double defense: Jika violationType leakage untuk Pelanggan namun correctedReply masih membocorkan angka/nominal rahasia
