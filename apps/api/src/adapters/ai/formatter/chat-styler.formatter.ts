@@ -33,14 +33,25 @@ export class ChatStylerFormatter {
     // Mengubah **teks** menjadi *teks*
     content = content.replace(/\*\*([^\*\n]+?)\*\*/g, '*$1*');
 
-    // 4. Pastikan bullet point (• atau -) selalu dimulai pada baris baru jika didahului teks biasa
-    content = content.replace(/([^\n])\s*•\s+/g, '$1\n\n• ');
-    content = content.replace(/([^\n])\s*-\s+/g, '$1\n\n- ');
+    // 4. Ubah tanda strip (-) HANYA jika berada di awal baris menjadi bullet point (•)
+    // PERBAIKAN BUG: Tanda strip di tengah kalimat/rentang angka TIDAK BOLEH dipotong!
+    content = content.replace(/(^|\n)[ \t]*-[ \t]+/g, '$1• ');
 
-    // 5. Pastikan nomor urut poin seperti "1. " atau "1) " didahului baris baru jika didahului titik kalimat
+    // 5. Pastikan bullet point (•) yang didahului teks biasa diawali baris baru ganda
+    content = content.replace(/([^\n])\s+•\s+/g, '$1\n\n• ');
+
+    // 6. Pastikan nomor urut poin (1., 2.) yang didahului titik kalimat diawali baris baru ganda
     content = content.replace(/([.!?])\s+(\d+[.)]\s+)/g, '$1\n\n$2');
 
-    // 6. Normalisasi spasi baris baru berlebih (maksimal 2 baris baru berurutan)
+    // 7. COMPACT LIST SPACING: Rapatkan jeda antar-item list berturut-turut (cukup 1 enter \n)
+    while (/(•[^\n]+)\n\n+(•\s+)/.test(content)) {
+      content = content.replace(/(•[^\n]+)\n\n+(•\s+)/g, '$1\n$2');
+    }
+    while (/(\d+[.)][^\n]+)\n\n+(\d+[.)]\s+)/.test(content)) {
+      content = content.replace(/(\d+[.)][^\n]+)\n\n+(\d+[.)]\s+)/g, '$1\n$2');
+    }
+
+    // 8. Normalisasi spasi baris baru berlebih (maksimal 2 baris baru berurutan)
     content = content.replace(/\n{3,}/g, '\n\n');
 
     // 7. Pulihkan inline code

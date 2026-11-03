@@ -21,11 +21,11 @@ describe("Tahap 10 Test Suite: Chat Typography & Code Styler Architecture", () =
     const wallOfText = "Ini fondasi yang solid. • Website Company Profile: Rp 500rb • Paket Web: Rp 1,5jt. 1. Mulai dari web profile. 2. Lanjut ke aplikasi.";
     const formatted = ChatStylerFormatter.format(wallOfText, "whatsapp");
 
-    // Setiap bullet point harus didahului baris baru
+    // Poin pertama didahului jeda paragraf, sedangkan antar-poin dirapatkan (compact)
     expect(formatted).toContain("Ini fondasi yang solid.\n\n• Website Company Profile");
-    expect(formatted).toContain("\n\n• Paket Web: Rp 1,5jt.");
+    expect(formatted).toContain("\n• Paket Web: Rp 1,5jt.");
     expect(formatted).toContain("\n\n1. Mulai dari web profile.");
-    expect(formatted).toContain("\n\n2. Lanjut ke aplikasi.");
+    expect(formatted).toContain("\n2. Lanjut ke aplikasi.");
   });
 
   it("TEST 10.3: ChatStylerFormatter dan JsonParser menjaga keutuhan blok kode program & menormalisasi literal slash-n", () => {
@@ -97,6 +97,39 @@ describe("Tahap 10 Test Suite: Chat Typography & Code Styler Architecture", () =
     const hasBulletsOrNumbers = result.reply.includes("•") || result.reply.includes("-") || /\d+[.)]/.test(result.reply);
     expect(hasBulletsOrNumbers).toBe(true);
     // Transparansi saran AI
-    expect(result.reply.toLowerCase()).toMatch(/saran|asumsi|analisis|belum tercatat/);
+    expect(result.reply.toLowerCase()).toMatch(/saran|asumsi|analisis|belum tercatat|ide|pertimbangkan/);
   }, 40000);
+
+  it("TEST 10.7: ChatStylerFormatter TIDAK MEMOTONG rentang harga bertanda minus dan merapatkan jeda antar-bullet (Compact)", () => {
+    const raw = `Berikut daftar harga layanan kami:
+• Website Company Profile: Rp 500.000 (non-negotiable)
+• Pembuatan Sistem Informasi Berbasis Web: Rp 1.500.000 - Rp 10.000.000 (negotiable)
+• Pembuatan Layanan Aplikasi Android: Rp 3.000.000 - Rp 50.000.000 (negotiable)
+
+Jika berminat silakan hubungi kami!`;
+
+    const formatted = ChatStylerFormatter.format(raw, "whatsapp");
+
+    // Rentang harga 1.5jt - 10jt TIDAK BOLEH terbelah menjadi bullet baru
+    expect(formatted).toContain("Rp 1.500.000 - Rp 10.000.000 (negotiable)");
+    expect(formatted).toContain("Rp 3.000.000 - Rp 50.000.000 (negotiable)");
+    expect(formatted).not.toContain("• Rp 10.000.000");
+    expect(formatted).not.toContain("• Rp 50.000.000");
+
+    // Kerapatan baris antar bullet: harus 1 baris baru (\n), bukan double (\n\n)
+    expect(formatted).toContain("Profile: Rp 500.000 (non-negotiable)\n• Pembuatan Sistem");
+  });
+
+  it("TEST 10.8: ChatStylerFormatter merapatkan baris pada Numbered List (1., 2., 3.)", () => {
+    const rawNumbered = `Cara pemesanan:
+1. Konsultasi kebutuhan proyek dengan admin.
+
+2. Pembayaran DP 50% untuk mulai pengerjaan.
+
+3. Uji coba dan serah terima aplikasi.`;
+
+    const formatted = ChatStylerFormatter.format(rawNumbered, "whatsapp");
+    expect(formatted).toContain("1. Konsultasi kebutuhan proyek dengan admin.\n2. Pembayaran DP 50%");
+    expect(formatted).toContain("2. Pembayaran DP 50% untuk mulai pengerjaan.\n3. Uji coba");
+  });
 });
