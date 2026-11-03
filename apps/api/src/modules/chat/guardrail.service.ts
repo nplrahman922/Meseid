@@ -56,6 +56,10 @@ ATURAN AUDIT KETAT BERDASARKAN PENERIMA:
      * Admin toko WAJIB dan BERHAK membagikan informasi harga jual, paket, dan rincian pricelist yang tercantum di Knowledge Base kepada pelanggan. Memberikan harga jual resmi dari Knowledge Base BUKAN kebocoran data dan WAJIB disetujui (is_valid = true, action_directive = "approve").
    - ANTI-HALUSINASI KETAT: Draf balasan TIDAK BOLEH mengarang harga paket di luar Knowledge Base, diskon fiktif (misal diskon 90%), garansi fiktif, atau syarat yang bertentangan dengan Knowledge Base resmi (violation_type = "hallucination", action_directive = "direct_guide").
    - ATURAN KEBOCORAN DATA RAHASIA: Dilarang keras membocorkan biaya modal kulakan/HPP, biaya server internal AWS, target margin/BEP, data keuangan rahasia perusahaan, atau SOP rahasia kepada pelanggan (violation_type = "leakage", action_directive = "refuse_politely"). Harga jual produk resmi yang tertera di KB BUKAN data rahasia.
+   - BATASAN CAKUPAN BISNIS & ANTI OUT-OF-SCOPE (KODE / PANTUN BEBAS):
+     * Bot toko HANYA melayani pertanyaan seputar produk, harga, dan layanan bisnis resmi yang ada di Knowledge Base toko.
+     * Pelanggan DILARANG memanfaatkan bot toko untuk meminta pembuatan kode pemrograman umum (seperti Python, Rust, script), mengerjakan tugas sekolah/matematika, atau membuat pantun/puisi/lelucon di luar konteks toko, KECUALI jika layanan tersebut secara eksplisit terdaftar di Knowledge Base toko.
+     * Jika draf balasan melayani permintaan kode pemrograman umum, tugas, atau pantun yang TIDAK ADA di Knowledge Base toko kepada pelanggan: is_valid = false (violation_type = "inappropriate", action_directive = "refuse_politely"), berikan critique jelas dan corrected_reply berupa penolakan santun yang mengarahkan kembali ke layanan resmi toko.
 3. KESESUAIAN PERTANYAAN: Draf balasan harus relevan dan menjawab pertanyaan pengguna secara sopan.
 4. INTEGRITAS FORMAT & ANTI-CORRUPTED JSON: Draf balasan harus berupa teks percakapan alami manusia yang siap dikirim. Draf TIDAK BOLEH mengandung sintaks mentah JSON seperti '{"reply":', kurung kurawal pembuka {, tanda petik JSON, atau respons terpotong. Jika draf balasan mengandung kode/sintaks JSON mentah, is_valid = false (violation_type = "corrupted", action_directive = "sanitize_clean"), dan berikan "corrected_reply" berupa teks bersih manusia tanpa kurung kurawal atau sintaks kode.
 5. ANTI-COT & BAHASA KOMUNIKASI: Draf balasan WAJIB berupa kalimat percakapan langsung kepada pengguna dalam Bahasa Indonesia. Draf DILARANG KERAS berupa monolog proses berpikir internal (Chain-of-Thought) dalam bahasa Inggris atau refleksi diri model (misalnya diawali "The user...", "He wants me to...", "I need to balance...", "Write a new reply...", dll.). Jika draf berupa monolog atau berbahasa Inggris alih-alih menyapa langsung pengguna, is_valid = false (violation_type = "corrupted", action_directive = "sanitize_clean"), dan berikan "corrected_reply" bahasa Indonesia yang langsung menjawab pengguna.
@@ -106,6 +110,16 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
       /In my previous response\b/i.test(trimmedDraft) ||
       /Format requirements:\b/i.test(trimmedDraft) ||
       /Let me compose the reply:/i.test(trimmedDraft);
+
+    // Deteksi awal: Batasan Ruang Lingkup Pelanggan (Anti Out-of-Scope: Permintaan Kode / Pantun Bebas)
+    const outOfScopeCheck = this.checkCustomerOutOfScope(input);
+    if (outOfScopeCheck) {
+      guardrailLogger.info("Mencegat permintaan Out-of-Scope untuk Pelanggan", {
+        reason: outOfScopeCheck.reason,
+        critique: outOfScopeCheck.critique,
+      });
+      return outOfScopeCheck;
+    }
 
     try {
       const response = await aiAdapter.chatWithFallback(
@@ -195,7 +209,7 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
         }
 
         // Lindungi harga jual resmi pelanggan dari false-positive leakage:
-        if (isCustomer && (violationType === "leakage" || violationType === "hallucination")) {
+        if (isCustomer && violationType === "leakage") {
           const isTrueInternalLeakage = /aws|server internal|kulakan|margin laba|bep|modal dapur|rekening pribadi/i.test(input.draftReply);
           const hasPricelistContext = Boolean(input.knowledgeBaseContext && /harga|pricelist|paket|500k|99\.000/i.test(input.knowledgeBaseContext));
           if (!isTrueInternalLeakage && hasPricelistContext && /harga|pricelist|biaya|paket|layanan/i.test(input.userMessage)) {
@@ -296,6 +310,61 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
         judgeModel: this.judgeModel,
       };
     }
+  }
+
+  /**
+   * Deterministic Interceptor: Mencegah pelanggan memanfaatkan bot toko untuk meminta pembuatan
+   * kode pemrograman bebas, tugas akademik, atau pantun/hiburan santai yang tidak tercantum di Knowledge Base toko.
+   */
+  private checkCustomerOutOfScope(input: GuardrailValidationInput): GuardrailValidationResult | null {
+    if (input.persona !== "admin") return null;
+
+    const kbLower = (input.knowledgeBaseContext || "").toLowerCase();
+    const userLower = (input.userMessage || "").toLowerCase();
+    const draft = input.draftReply || "";
+
+    const isRequestingCode =
+      /\b(?:buatkan|kasih|minta|bikin|tuliskan|generate|tampilkan|contoh)\b[\s\S]*?\b(?:kode|code|koding|coding|script|python|rust|golang|javascript|html|css|sql)\b/i.test(userLower) ||
+      /\b(?:kode|code|script|python|rust|golang|javascript)\b[\s\S]*?\b(?:buat|bikin|generate|hello\s*world|greetings)\b/i.test(userLower);
+
+    const isRequestingPantun =
+      /\b(?:buatkan|kasih|minta|bikin|tuliskan|generate|ada|bisa)\b[\s\S]*?\b(?:pantun|puisi|cerpen|lelucon|candaan)\b/i.test(userLower) ||
+      /\b(?:pantun|puisi)\b[\s\S]*?\b(?:buat|bikin|dong|kak|bang|salam|greetings)\b/i.test(userLower);
+
+    const hasCodeInDraft = /(?:```(?:python|rust|javascript|ts|js|html|css|sql|sh)?\s*[\s\S]+?```|print\s*\()/i.test(draft);
+
+    const kbHasCode = /\b(jasa (?:coding|pemrograman|script|koding)|kursus coding|belajar python)\b/i.test(kbLower);
+    const kbHasPantun = /\b(jasa pantun|pembuatan pantun|koleksi pantun)\b/i.test(kbLower);
+
+    const business = input.businessName || "toko kami";
+
+    if ((isRequestingCode || hasCodeInDraft) && !kbHasCode) {
+      return {
+        isValid: false,
+        confidenceScore: 1.0,
+        violationType: "inappropriate",
+        actionDirective: "refuse_politely",
+        critique: "Pelanggan meminta pembuatan kode pemrograman di luar layanan resmi toko.",
+        reason: "Deteksi Out-of-Scope: Permintaan kode pemrograman bebas untuk pelanggan",
+        correctedReply: `Mohon maaf, sebagai asisten layanan ${business}, saya hanya dapat membantu pertanyaan seputar produk dan layanan resmi kami. Apakah ada informasi seputar layanan ${business} yang bisa kami bantu?`,
+        judgeModel: this.judgeModel,
+      };
+    }
+
+    if (isRequestingPantun && !kbHasPantun) {
+      return {
+        isValid: false,
+        confidenceScore: 1.0,
+        violationType: "inappropriate",
+        actionDirective: "refuse_politely",
+        critique: "Pelanggan meminta pantun/hiburan di luar layanan resmi toko.",
+        reason: "Deteksi Out-of-Scope: Permintaan pantun bebas untuk pelanggan",
+        correctedReply: `Mohon maaf, sebagai asisten layanan ${business}, saya hanya dapat membantu pertanyaan seputar produk dan layanan resmi kami. Apakah ada informasi seputar layanan ${business} yang bisa kami bantu?`,
+        judgeModel: this.judgeModel,
+      };
+    }
+
+    return null;
   }
 }
 
