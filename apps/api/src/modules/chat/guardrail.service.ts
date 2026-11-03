@@ -1,4 +1,5 @@
 import { aiAdapter } from "../../adapters/ai";
+import { AiCotCleaner } from "../../adapters/ai/sanitizer/ai-cot-cleaner";
 import { createModuleLogger } from "../../logs";
 import type { ActionDirective } from "../../adapters/ai/types";
 
@@ -85,13 +86,20 @@ PERTANYAAN PENGGUNA:
 DRAF BALASAN AI YANG AKAN DIAUDIT:
 "${input.draftReply}"`;
 
-    // Deteksi awal apakah draf mengandung artefak JSON mentah atau teks terpotong
+    // Deteksi awal apakah draf mengandung artefak JSON mentah atau kebocoran CoT bahasa Inggris
     const trimmedDraft = (input.draftReply || "").trim();
     const hasRawJsonArtifact =
       trimmedDraft.startsWith("{") ||
       trimmedDraft.includes('"reply":') ||
       trimmedDraft.includes('{\n  "reply"') ||
       trimmedDraft.includes("```json");
+
+    const hasCotLeakage =
+      /The user is asking\b/i.test(trimmedDraft) ||
+      /Let me review\b/i.test(trimmedDraft) ||
+      /In my previous response\b/i.test(trimmedDraft) ||
+      /Format requirements:\b/i.test(trimmedDraft) ||
+      /Let me compose the reply:/i.test(trimmedDraft);
 
     try {
       const response = await aiAdapter.chatWithFallback(
@@ -140,7 +148,7 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
           : (isValid ? "approve" : (violationType === "leakage" ? "refuse_politely" : (violationType === "corrupted" ? "sanitize_clean" : "direct_guide")));
         let critique = String(parsed.critique || (isValid ? "Draf balasan lolos audit." : "Draf memerlukan koreksi keselamatan / akurasi."));
 
-        // Jika draf terbukti bocor JSON mentah namun judge meloloskannya secara keliru, override!
+        // Jika draf terbukti bocor JSON mentah atau monolog CoT, tandai dan bersihkan!
         if (hasRawJsonArtifact) {
           isValid = false;
           violationType = "corrupted";
@@ -148,10 +156,26 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
           critique = "Draf mengandung struktur JSON mentah atau teks terpotong.";
           reason = "Deteksi otomatis integritas format: Draf mengandung artefak JSON mentah";
           correctedReply = aiAdapter.sanitizeRawAiReply(input.draftReply);
+        } else if (hasCotLeakage) {
+          isValid = false;
+          violationType = "corrupted";
+          actionDirective = "sanitize_clean";
+          critique = "Draf mengandung monolog proses berpikir (CoT) dalam bahasa Inggris.";
+          reason = "Deteksi otomatis CoT: Draf membocorkan proses berpikir internal";
+          correctedReply = AiCotCleaner.cleanThinkingArtifacts(input.draftReply);
         }
 
-        // Double defense: Jika violationType leakage namun correctedReply masih membocorkan angka/nominal rahasia
-        if (violationType === "leakage" && correctedReply) {
+        // Aturan Mutlak Hak Akses Owner: Owner BERHAK mengetahui modal/biaya operasional internal
+        if (!isCustomer && violationType === "leakage") {
+          isValid = true;
+          violationType = null;
+          actionDirective = "approve";
+          critique = "Pemilik usaha (Owner) memiliki hak akses penuh terhadap seluruh data internal.";
+          correctedReply = null;
+        }
+
+        // Double defense: Jika violationType leakage untuk Pelanggan namun correctedReply masih membocorkan angka/nominal rahasia
+        if (isCustomer && violationType === "leakage" && correctedReply) {
           const sensitivePatterns = [/\d{1,3}(?:\.\d{3})+/g, /password/i, /secret/i, /bep/i];
           const hasLeakedNumbers = sensitivePatterns.some(
             (pattern) => pattern.test(input.draftReply) && pattern.test(correctedReply!)
@@ -188,15 +212,15 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
         hasRawJsonArtifact,
       });
 
-      if (hasRawJsonArtifact) {
+      if (hasRawJsonArtifact || hasCotLeakage) {
         return {
           isValid: false,
           confidenceScore: 1.0,
           violationType: "corrupted",
           actionDirective: "sanitize_clean",
-          critique: "Draf terdeteksi mengandung format JSON mentah dan langsung disanitasi.",
-          reason: "Format parsing fallback: Draf mengandung JSON mentah dan langsung disanitasi",
-          correctedReply: aiAdapter.sanitizeRawAiReply(input.draftReply),
+          critique: hasCotLeakage ? "Draf mengandung monolog CoT dan langsung disanitasi." : "Draf terdeteksi mengandung format JSON mentah dan langsung disanitasi.",
+          reason: "Format parsing fallback: Draf disanitasi",
+          correctedReply: hasCotLeakage ? AiCotCleaner.cleanThinkingArtifacts(input.draftReply) : aiAdapter.sanitizeRawAiReply(input.draftReply),
           judgeModel: response.model,
         };
       }

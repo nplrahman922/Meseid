@@ -6,6 +6,7 @@ import { InboundRecorder } from "./pipeline/inbound-recorder";
 import { OwnerResolver, type ChannelOwnerResolution } from "./pipeline/owner-resolver";
 import { ContextLoader } from "./pipeline/context-loader";
 import { MemoryWindowReader } from "./pipeline/memory-window.reader";
+import { DiscussionOrchestrator } from "./pipeline/discussion-orchestrator";
 import { BookkeepingPersister } from "./pipeline/bookkeeping-persister";
 import { ChatPersister } from "./pipeline/chat-persister";
 
@@ -88,25 +89,23 @@ export class ChatService {
     // 6. Memory Window & Simpan Pesan User
     const memory = await MemoryWindowReader.processUserMemory(payload, owner.owner_id, isOwner, persona);
 
-    // 7. Sesi 2: Primary Generator AI
+    // 7 & 8. Sesi 2 & 3: Metode AI Diskusi (Generator + Critic Loop & Auto-Refinement)
     let aiResult;
+    let finalReply = "";
     try {
-      aiResult = await aiAdapter.extractChatResponse(
+      const discussion = await DiscussionOrchestrator.executeDiscussionLoop({
         userMessage,
         persona,
-        {
-          businessName: owner.business_name,
-          businessType: owner.business_type,
-          botName: chatContext.botName,
-          knowledgeBaseContext: chatContext.knowledgeBaseContext,
-          memoryDigest: memory.memoryDigest,
-          customPersonaPrompt: chatContext.customPersonaPrompt,
-          recentTurns: memory.recentTurns,
-        },
-        effectiveModel
-      );
+        owner,
+        chatContext,
+        memory,
+        effectiveModel,
+      });
+
+      aiResult = discussion.aiResult;
+      finalReply = discussion.reply;
     } catch (aiErr: any) {
-      chatLogger.error(`Gagal memanggil AI: ${aiErr.message}`, aiErr, {
+      chatLogger.error(`Gagal memanggil AI Pipeline: ${aiErr.message}`, aiErr, {
         channel: payload.channel,
         senderId: payload.sender_id,
       });
@@ -119,35 +118,6 @@ export class ChatService {
           "Mohon maaf, sistem AI asisten sedang mengalami kendala jaringan. Data belum tersimpan. Silakan coba kirim kembali.",
         error: aiErr.message,
       };
-    }
-
-    // 8. Sesi 3: Secondary AI Guardrail Judge & Action Directive
-    let finalReply = aiResult.reply;
-    try {
-      const guardrailCheck = await guardrailService.validateDraftReply({
-        userMessage,
-        draftReply: aiResult.reply,
-        persona,
-        knowledgeBaseContext: chatContext.knowledgeBaseContext,
-        businessName: owner.business_name,
-      });
-
-      if (!guardrailCheck.isValid && guardrailCheck.correctedReply) {
-        chatLogger.warn(
-          `Guardrail Judge mengoreksi draf AI [Directive: ${guardrailCheck.actionDirective}, Type: ${guardrailCheck.violationType}]: ${guardrailCheck.critique}`,
-          {
-            ownerId: owner.owner_id,
-            actionDirective: guardrailCheck.actionDirective,
-            critique: guardrailCheck.critique,
-            reason: guardrailCheck.reason,
-            original: aiResult.reply,
-            corrected: guardrailCheck.correctedReply,
-          }
-        );
-        finalReply = guardrailCheck.correctedReply;
-      }
-    } catch (gErr: any) {
-      chatLogger.warn(`Secondary Guardrail Judge warning: ${gErr.message}`);
     }
 
     // Layer 3 Pertahanan Akhir: Sanitisasi raw AI reply & Formatter gaya chat (WhatsApp / Telegram)

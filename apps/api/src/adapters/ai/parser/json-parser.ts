@@ -1,3 +1,5 @@
+import { AiCotCleaner } from '../sanitizer/ai-cot-cleaner';
+
 /**
  * Utilitas Parser dan Sanitizer respon JSON dari AI Model.
  */
@@ -221,6 +223,6 @@ export class JsonParser {
       return 'Halo! Ada yang bisa kami bantu?';
     }
 
-    return text;
+    return AiCotCleaner.cleanThinkingArtifacts(text);
   }
 }

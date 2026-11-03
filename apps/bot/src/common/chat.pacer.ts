@@ -10,6 +10,7 @@ export interface BufferedMessageItem {
 
 export interface ChatPacerOptions {
   debounceMs?: number;
+  maxDebounceMs?: number;
   minDelayWaMs?: number;
   maxDelayWaMs?: number;
   minDelayTgMs?: number;
@@ -22,6 +23,7 @@ export interface BufferSession {
   senderId: string;
   chatId: string;
   items: BufferedMessageItem[];
+  firstMessageAt: number;
   timer: NodeJS.Timeout | null;
   presenceInterval: NodeJS.Timeout | null;
   latestPayload: any;
@@ -32,17 +34,19 @@ export interface BufferSession {
 export class ChatPacer {
   private sessions: Map<string, BufferSession> = new Map();
   public debounceMs: number;
+  public maxDebounceMs: number;
   public minDelayWaMs: number;
   public maxDelayWaMs: number;
   public minDelayTgMs: number;
   public maxDelayTgMs: number;
 
   constructor(options: ChatPacerOptions = {}) {
-    this.debounceMs = options.debounceMs ?? 3500;
-    this.minDelayWaMs = options.minDelayWaMs ?? 7000;
-    this.maxDelayWaMs = options.maxDelayWaMs ?? 15000;
-    this.minDelayTgMs = options.minDelayTgMs ?? 4000;
-    this.maxDelayTgMs = options.maxDelayTgMs ?? 8000;
+    this.debounceMs = options.debounceMs ?? 15000; // Akumulasi 15 detik untuk burst messages
+    this.maxDebounceMs = options.maxDebounceMs ?? 20000; // Batas atas maksimal 20 detik
+    this.minDelayWaMs = options.minDelayWaMs ?? 1000;
+    this.maxDelayWaMs = options.maxDelayWaMs ?? 3000;
+    this.minDelayTgMs = options.minDelayTgMs ?? 1000;
+    this.maxDelayTgMs = options.maxDelayTgMs ?? 3000;
   }
 
   /**
@@ -90,6 +94,7 @@ export class ChatPacer {
   }): void {
     const sessionKey = this.getSessionKey(params.channel, params.botId, params.senderId);
     let session = this.sessions.get(sessionKey);
+    const now = Date.now();
 
     if (!session) {
       session = {
@@ -98,6 +103,7 @@ export class ChatPacer {
         senderId: params.senderId,
         chatId: params.chatId,
         items: [],
+        firstMessageAt: now,
         timer: null,
         presenceInterval: null,
         latestPayload: params.payload,
@@ -120,14 +126,14 @@ export class ChatPacer {
       session.items.push({
         messageId: params.messageId,
         text: params.text,
-        timestamp: Date.now(),
+        timestamp: now,
       });
     }
 
     // Kirim presence update langsung saat pesan pertama masuk
     params.sendPresence().catch(() => {});
 
-    // Reset atau mulai timer debounce 3.5 detik
+    // Reset atau mulai timer debounce dengan batas atas maxDebounceMs (15 - 20 detik)
     if (session.timer) {
       clearTimeout(session.timer);
     }
@@ -142,11 +148,15 @@ export class ChatPacer {
       }, 3000);
     }
 
+    const elapsedTotal = now - session.firstMessageAt;
+    const remainingToCap = Math.max(this.maxDebounceMs - elapsedTotal, 1000);
+    const delay = Math.min(this.debounceMs, remainingToCap);
+
     session.timer = setTimeout(() => {
       this.flushSession(sessionKey);
-    }, this.debounceMs);
+    }, delay);
 
-    pacerLogger.info(`Buffer diperbarui untuk [${sessionKey}]: ${session.items.length} pesan terakumulasi (reset timer ${this.debounceMs}ms)`);
+    pacerLogger.info(`Buffer diperbarui untuk [${sessionKey}]: ${session.items.length} pesan terakumulasi (timer ${delay}ms)`);
   }
 
   /**
