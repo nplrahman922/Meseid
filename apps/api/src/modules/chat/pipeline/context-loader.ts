@@ -35,8 +35,8 @@ export class ContextLoader {
 
       if (botConfig) {
         botName = isOwner
-          ? botConfig.assistant_bot_name || "Enbee asistant"
-          : botConfig.admin_bot_name || "Samsul Jasting";
+          ? botConfig.assistant_bot_name || "Asisten Bisnis"
+          : botConfig.admin_bot_name || "Admin Toko";
         customPersonaPrompt = isOwner
           ? botConfig.assistant_persona_prompt || undefined
           : botConfig.admin_persona_prompt || undefined;

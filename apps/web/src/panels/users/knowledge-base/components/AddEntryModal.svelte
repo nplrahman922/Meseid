@@ -42,22 +42,6 @@
 			});
 		}
 	}
-
-	function applyPreset(domain: 'kuliner' | 'fashion' | 'bengkel') {
-		if (domain === 'kuliner') {
-			title = 'Daftar Menu & Jam Operasional Warung';
-			category = 'Produk / Harga';
-			content = '• Nasi Ayam Geprek Sambal Korek: Rp 22.000 / porsi\n• Paket Bebek Goreng Sambal Ijo: Rp 32.000 / porsi\n• Es Teh Manis: Rp 5.000\n• Jam Operasional: Setiap hari 09:00 - 21:00 WIB\n• Gratis ongkir minimal Rp 50.000 dalam radius 2 km.';
-		} else if (domain === 'fashion') {
-			title = 'Katalog Busana Muslim & Kebijakan Retur';
-			category = 'Produk / Harga';
-			content = '• Gamis Rayon Viscose Silk: Rp 165.000 (All size LD 110cm, Busui friendly)\n• Pashmina Ceruty Baby Doll: Rp 45.000\n• Khimar Syari 2 Layer: Rp 85.000\n• Garansi Tukar Size: Maksimal 3 hari sejak barang diterima (tag utuh)\n• Jam Buka: Senin - Sabtu 08:30 - 17:30 WIB.';
-		} else if (domain === 'bengkel') {
-			title = 'Tarif Jasa Servis & Suku Cadang Motor';
-			category = 'Produk / Harga';
-			content = '• Servis Ringan + Tune-up Injeksi: Rp 45.000\n• Paket Servis Lengkap + CVT Matic: Rp 75.000\n• Ganti Oli Honda MPX2: Rp 55.000 (Gratis jasa ganti)\n• Garansi Servis: 14 hari keluhan yang sama (bawa nota)\n• Buka: Setiap hari 08:00 - 17:00 WIB.';
-		}
-	}
 </script>
 
 {#if isOpen}
@@ -80,38 +64,6 @@
 					✕
 				</button>
 			</div>
-
-			<!-- Quick Preset Buttons -->
-			{#if !initialTitle}
-				<div class="p-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl space-y-1.5">
-					<div class="text-[11px] font-intel text-[#6B7280]">
-						💡 Baru mulai? Gunakan preset contoh template usaha:
-					</div>
-					<div class="flex items-center gap-1.5 flex-wrap">
-						<button
-							type="button"
-							onclick={() => applyPreset('kuliner')}
-							class="px-2.5 py-1 text-[11px] font-intel bg-white border border-[#D1D5DB] hover:border-[#0E6B2B] text-[#111111] rounded-lg cursor-pointer"
-						>
-							🍜 Kuliner Warung
-						</button>
-						<button
-							type="button"
-							onclick={() => applyPreset('fashion')}
-							class="px-2.5 py-1 text-[11px] font-intel bg-white border border-[#D1D5DB] hover:border-[#0E6B2B] text-[#111111] rounded-lg cursor-pointer"
-						>
-							👗 Butik Hijab
-						</button>
-						<button
-							type="button"
-							onclick={() => applyPreset('bengkel')}
-							class="px-2.5 py-1 text-[11px] font-intel bg-white border border-[#D1D5DB] hover:border-[#0E6B2B] text-[#111111] rounded-lg cursor-pointer"
-						>
-							🔧 Bengkel Motor
-						</button>
-					</div>
-				</div>
-			{/if}
 
 			<!-- Form -->
 			<form onsubmit={handleSubmit} class="space-y-4 text-xs font-intel">
