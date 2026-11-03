@@ -10,6 +10,7 @@ import {
   EVAL_DATASET,
   getDatasetForPersona,
 } from '../src/adapters/ai/eval/eval.dataset';
+import { ALL_STORE_CONTEXTS, getStoreContext } from '../src/adapters/ai/eval/eval.context';
 import { EvalScorer } from '../src/adapters/ai/eval/eval.scorer';
 import { modelProfilesRegistry } from '../src/adapters/ai/eval/model-profiles.registry';
 
@@ -123,5 +124,25 @@ describe('AI Evaluation Matrix & Persona Separation Tests', () => {
     expect(result.passed).toBe(true);
     expect(result.metricBreakdown.kb_groundedness).toBe(100);
     expect(result.metricBreakdown.schema_validity).toBe(100);
+  });
+
+  it('harus menyediakan 3 konteks toko UMKM yang berbeda karakter & domain bisnisnya', () => {
+    expect(Object.keys(ALL_STORE_CONTEXTS)).toEqual(['kuliner', 'fashion', 'bengkel']);
+
+    const warung = getStoreContext('kuliner');
+    expect(warung.businessName).toBe('Warung Bu Rina');
+    expect(warung.customPersonaPrompt).toContain('Kak / Kakak');
+
+    const fashion = getStoreContext('fashion');
+    expect(fashion.businessName).toBe('Zahra Hijab & Modest Wear');
+    expect(fashion.customPersonaPrompt).toContain('Ukhti / Kakak / Bunda');
+    expect(fashion.knowledgeBaseContext).toContain('Gamis Rayon Viscose');
+    expect(fashion.knowledgeBaseContext).toContain('Tanah Abang');
+
+    const bengkel = getStoreContext('bengkel');
+    expect(bengkel.businessName).toBe('Bintang Jaya Motor');
+    expect(bengkel.customPersonaPrompt).toContain('Mas / Pak / Kak');
+    expect(bengkel.knowledgeBaseContext).toContain('Tune-up Injeksi');
+    expect(bengkel.knowledgeBaseContext).toContain('Sentra Pelumas');
   });
 });
