@@ -7,6 +7,8 @@ import { extractChatResponse as extractFn } from './extractor/chat-extractor';
 import { probeModelHealth as probeFn, testFreeModel as testModelFn } from './probe/model-probe';
 import { JsonParser } from './parser/json-parser';
 import { ChatStylerFormatter } from './formatter/chat-styler.formatter';
+import { EvalRunner } from './eval/eval.runner';
+import { modelProfilesRegistry } from './eval/model-profiles.registry';
 import type {
   AiChatOptions,
   AiChatResult,
@@ -17,6 +19,7 @@ import type {
   SyncAiModelsResult,
   SyncModelsOptions,
 } from './types';
+import type { EvalTestCase, ModelEvalSummary, ModelProfile } from './eval/eval.types';
 
 /**
  * AiAdapter Facade:
@@ -86,6 +89,18 @@ export class AiAdapter {
 
   styleChatReply(reply: string, channel?: 'whatsapp' | 'telegram'): string {
     return ChatStylerFormatter.format(reply, channel);
+  }
+
+  evaluateModel(
+    modelId: string,
+    customDataset?: EvalTestCase[],
+    options?: { onProgress?: (current: number, total: number, testName: string) => void }
+  ): Promise<ModelEvalSummary> {
+    return EvalRunner.evaluateModel(modelId, customDataset, options);
+  }
+
+  getModelProfile(modelId: string): ModelProfile {
+    return modelProfilesRegistry.getProfile(modelId);
   }
 }
 
