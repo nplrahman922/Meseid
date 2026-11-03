@@ -192,3 +192,40 @@ export async function verifyTelegramToken(token: string): Promise<{
 		};
 	}
 }
+
+/**
+ * Memvalidasi 6-digit kode OTP Telegram (Inverted OTP) yang diminta owner dari bot.
+ */
+export async function verifyTelegramOtpCode(
+	code: string
+): Promise<{ success: boolean; error?: string; chatId?: string }> {
+	try {
+		const res = await fetch('/api/bot/telegram/verify-otp', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Accept: 'application/json'
+			},
+			credentials: 'include',
+			body: JSON.stringify({ code: code.trim() })
+		});
+
+		const json = await res.json();
+		if (!res.ok || json.status !== 'ok') {
+			return {
+				success: false,
+				error: json.message || 'Kode OTP Telegram tidak valid atau sudah kedaluwarsa.'
+			};
+		}
+
+		return {
+			success: true,
+			chatId: json.chatId
+		};
+	} catch (err: any) {
+		return {
+			success: false,
+			error: err.message || 'Network error while verifying Telegram OTP.'
+		};
+	}
+}

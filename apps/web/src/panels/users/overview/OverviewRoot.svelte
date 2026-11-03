@@ -206,6 +206,8 @@
 							initialWhatsappConnected={draftData.whatsappConnected}
 							initialPhone={draftData.ownerPhone}
 							initialPhoneVerified={draftData.phoneVerified}
+							initialTelegramVerified={draftData.telegramVerified}
+							initialTelegramOwnerChatId={draftData.telegramOwnerChatId}
 							onBack={handleBack}
 							onNext={handleNext}
 							onUpdate={(data) => {
@@ -214,12 +216,16 @@
 								draftData.whatsappConnected = data.whatsappConnected;
 								if (data.ownerPhone !== undefined) draftData.ownerPhone = data.ownerPhone;
 								if (data.phoneVerified !== undefined) draftData.phoneVerified = data.phoneVerified;
+								if (data.telegramVerified !== undefined) draftData.telegramVerified = data.telegramVerified;
+								if (data.telegramOwnerChatId !== undefined) draftData.telegramOwnerChatId = data.telegramOwnerChatId;
 								saveOverviewDraft({
 									agreedToPolicy: data.agreedToPolicy,
 									telegramToken: data.telegramToken,
 									whatsappConnected: data.whatsappConnected,
 									ownerPhone: data.ownerPhone,
-									phoneVerified: data.phoneVerified
+									phoneVerified: data.phoneVerified,
+									telegramVerified: data.telegramVerified,
+									telegramOwnerChatId: data.telegramOwnerChatId
 								});
 							}}
 						/>

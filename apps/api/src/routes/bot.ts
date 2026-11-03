@@ -6,6 +6,7 @@ import {
   getWhatsappStatusController,
   resetWhatsappSessionController,
   verifyTelegramTokenController,
+  verifyTelegramOtpController,
 } from "../modules/bot";
 
 export const botRoutes = new Elysia()
@@ -34,6 +35,17 @@ export const botRoutes = new Elysia()
     {
       body: t.Object({
         token: t.String(),
+      }),
+    }
+  )
+
+  // Telegram Inverted OTP verification route
+  .post(
+    "/telegram/verify-otp",
+    verifyTelegramOtpController,
+    {
+      body: t.Object({
+        code: t.String(),
       }),
     }
   )

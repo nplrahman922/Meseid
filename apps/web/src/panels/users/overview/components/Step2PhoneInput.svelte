@@ -74,9 +74,9 @@
 		{#if whatsappConnected}
 			<span class="w-2 h-2 rounded-full bg-[#5FD068]"></span>
 			<span>Sending OTP via connected WhatsApp Bot</span>
-		{:else if telegramToken}
-			<span class="w-2 h-2 rounded-full bg-[#65BAA9]"></span>
-			<span>Sending OTP via connected Telegram Bot</span>
+		{:else}
+			<span class="w-2 h-2 rounded-full bg-[#111111]"></span>
+			<span>Owner Phone Identity</span>
 		{/if}
 	</div>
 

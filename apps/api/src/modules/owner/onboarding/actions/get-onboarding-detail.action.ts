@@ -17,7 +17,7 @@ export async function getOnboardingDetail(
   `;
 
   const [botConfig] = await tx`
-    SELECT admin_bot_name, assistant_bot_name, admin_persona_prompt, assistant_persona_prompt
+    SELECT admin_bot_name, assistant_bot_name, admin_persona_prompt, assistant_persona_prompt, allowed_contacts
     FROM bot_configs
     WHERE owner_id = ${ownerId}::uuid;
   `;
@@ -87,6 +87,8 @@ export async function getOnboardingDetail(
     assistantCustomRules,
     whatsappConnected: hasWhatsapp,
     telegramToken: tgChannel ? tgChannel.external_account_id : null,
+    telegramVerified: Boolean(tgChannel && Array.isArray(botConfig?.allowed_contacts) && botConfig.allowed_contacts.length > 0),
+    telegramOwnerChatId: (tgChannel && Array.isArray(botConfig?.allowed_contacts) && botConfig.allowed_contacts[0]) ? String(botConfig.allowed_contacts[0]) : null,
     knowledgeBase: kbRows.map((kb) => ({
       id: kb.id,
       title: kb.title,

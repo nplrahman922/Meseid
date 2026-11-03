@@ -58,6 +58,8 @@ export interface OnboardingDetailResult {
   assistantCustomRules: string[];
   whatsappConnected: boolean;
   telegramToken: string | null;
+  telegramVerified?: boolean;
+  telegramOwnerChatId?: string | null;
   knowledgeBase: Array<{
     id?: string;
     title: string;

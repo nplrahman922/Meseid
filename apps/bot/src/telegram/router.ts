@@ -8,6 +8,7 @@ export const telegramRouter = new Composer();
 telegramRouter.command('start', (ctx) => commandController.handleStart(ctx));
 telegramRouter.command('help', (ctx) => commandController.handleHelp(ctx));
 telegramRouter.command('status', (ctx) => commandController.handleStatus(ctx));
+telegramRouter.command('otp', (ctx) => commandController.handleOtp(ctx));
 
 // 2. Rute Pesan Masuk
 telegramRouter.on('message:text', (ctx) => chatController.handleTextMessage(ctx));

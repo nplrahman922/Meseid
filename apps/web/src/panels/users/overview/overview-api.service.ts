@@ -105,6 +105,8 @@ export async function fetchOnboardingDetail(): Promise<OverviewData | null> {
 			ownerPhone: d.ownerPhone || '',
 			phoneVerified: d.phoneVerified ?? false,
 			telegramToken: d.telegramToken || '',
+			telegramVerified: d.telegramVerified ?? false,
+			telegramOwnerChatId: d.telegramOwnerChatId || '',
 			whatsappConnected: d.whatsappConnected ?? false,
 			agreedToPolicy: true,
 			storeBotName: d.storeBotName || 'Admin Toko',

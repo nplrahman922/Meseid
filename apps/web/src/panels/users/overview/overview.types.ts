@@ -7,6 +7,8 @@ export interface OverviewData {
 	ownerPhone?: string;
 	phoneVerified?: boolean;
 	telegramToken?: string;
+	telegramVerified?: boolean;
+	telegramOwnerChatId?: string;
 	whatsappConnected?: boolean;
 	agreedToPolicy: boolean;
 	storeBotName?: string;

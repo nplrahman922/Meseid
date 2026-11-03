@@ -1,3 +1,7 @@
 export * from "./bot.otp.service";
 export * from "./bot.gateway.client";
 export * from "./bot.controller";
+export * from "./actions/verify-telegram-otp.action";
+export * from "./actions/generate-telegram-otp.action";
+export * from "./controllers/verify-telegram-otp.controller";
+export * from "./controllers/generate-telegram-otp.controller";
