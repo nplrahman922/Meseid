@@ -1,6 +1,6 @@
 import type { ModelProfile } from './eval.types';
 
-export const DEFAULT_FALLBACK_FREE_MODEL = 'nvidia/nemotron-3.5-lightning-free';
+export const DEFAULT_FALLBACK_FREE_MODEL = 'reflection/beam-free';
 
 export const INITIAL_MODEL_PROFILES: ModelProfile[] = [
   // 10 Model Berbayar Unggulan (VLM, LMM, LLM)
@@ -149,15 +149,15 @@ export const INITIAL_MODEL_PROFILES: ModelProfile[] = [
     modelId: 'nvidia/nemotron-3.5-lightning-free',
     name: 'Nemotron 3.5 Lightning Free',
     tier: 'free',
-    category: 'LMM',
+    category: 'LLM',
     temperature: 0.1,
     maxTokens: 800,
-    promptStyle: 'few_shot_markdown',
+    promptStyle: 'plain_text_regex',
     systemPromptLanguage: 'id',
-    requiresFewShot: true,
+    requiresFewShot: false,
     supportsJsonMode: false,
     stripThinkingTags: false,
-    fallbackModelId: 'inclusionai/ling-3.1-flash-1019',
+    fallbackModelId: 'reflection/beam-free',
   },
   {
     modelId: 'inclusionai/ling-3.1-flash-1019',

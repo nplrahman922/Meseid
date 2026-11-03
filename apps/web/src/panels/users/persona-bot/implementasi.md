@@ -1,155 +1,158 @@
-# Dokumen Spesifikasi & Rencana Implementasi: Persona Bot & Pemilihan Model AI
+# Cetak Biru Arsitektur & Rencana Implementasi: Persona Bot, Dynamic Prompt Engine, & Pemilihan Model AI
 
-Dokumen ini merupakan cetak biru teknis (*technical blueprint*) dan protokol resmi untuk perancangan dan pembaruan fitur **Persona Bot & Pemilihan Model AI** pada dashboard pemilik usaha (`apps/web`) dan pipeline backend (`apps/api`), mematuhi secara mutlak prinsip arsitektur baku [AGENTS.md](file:///d:/Project-Sync-Enbee/meseid/AGENTS.md).
-
----
-
-## 1. Landasan Prinsip Arsitektur (Kepatuhan Penuh AGENTS.md)
-
-1. **Prinsip "1 Berkas = 1 Fungsi Operasi" (File-Level SRP / Action-Based):**
-   - Modul backend (`apps/api`) memisahkan aksi baca (`get-personalisasi.action.ts`), aksi update (`update-personalisasi.action.ts`), guard akses paket (`model-access.guard.ts`), dan penyusunan prompt (`persona-prompt.builder.ts`).
-   - Modul antarmuka (`apps/web`) memisahkan kartu pemilihan model AI (`AiModelSelectionCard.svelte`), katalog konstanta master (`persona-bot.constants.ts`), formulir identitas (`BotGreetingForm.svelte`), dan pratinjau chat (`ChatPreviewCard.svelte`).
-2. **Batas Ukuran Berkas (*File Line Limits*):**
-   - Target ideal: 30 – 150 baris per file.
-   - Batas keras: **Tidak ada berkas yang melebihi 400 baris** di seluruh codebase.
-3. **Mode Produksi Database Murni & Zero Hardcoding Preset Toko:**
-   - Dilarang menyematkan data toko fiktif/uji coba (seperti Warung Bu Rina, Zahra Hijab, atau Bengkel Motor) ke dalam logika aplikasi produksi.
-   - Seluruh konten Knowledge Base dan identitas personalisasi harus murni diinput mandiri oleh pengguna dan disimpan di tabel PostgreSQL `knowledge_base` dan `bot_configs`.
+**Versi:** 2.0.0 (Revisi Arsitektural Menyeluruh)  
+**Status Dokumen:** Menunggu Review & Persetujuan Pengguna (*Draft Proposal*)  
+**Kepatuhan:** 100% Patuh pada [AGENTS.md](file:///d:/Project-Sync-Enbee/meseid/AGENTS.md) (File-Level SRP, Batas < 400 Baris, Zero Bypass)
 
 ---
 
-## 2. Arsitektur Pengaturan Prompt Backend (Selain KB & Personalisasi)
+## 1. Latar Belakang & Evaluasi Masalah Arsitektur Sebelumnya
 
-Sistem membedakan secara tegas antara input pengguna dengan instruksi baku tingkat backend:
+Berdasarkan audit teknis dan masukan kritis, terdapat dua kelemahan fundamental pada implementasi terdahulu yang wajib dirombak total:
+
+1. **Anti-Pattern String Prompt di Dalam Kode TypeScript (*Hardcoded Prompt Strings*):**
+   - Sebelumnya, teks prompt ratusan baris dicampurkan langsung di dalam fungsi TypeScript (`persona-prompt.builder.ts`).
+   - Hal ini melanggar *Separation of Concerns* (SRP), membuat berkas program membengkak, dan menyulitkan pemeliharaan berkala.
+   - **Solusi Baru:** Menerapkan standar industri *Prompt-as-Code* di mana seluruh teks prompt dieksternalisasi ke dalam berkas **Markdown (`.md`)** modular terpisah.
+
+2. **Ketiadaan Adaptor Template Dinamis (Konteks Statis Seragam untuk Semua AI):**
+   - Sebelumnya, satu template raksasa yang sama dipaksakan ke seluruh model AI tanpa membedakan kapasitas kognitif model.
+   - Akibatnya, model gratis berkapasitas kecil (seperti `nvidia/nemotron-free`) gagal (*score 56.9%*) karena mengalami kebingungan (*context dilution*) saat dipaksa menghasilkan skema JSON dan teks panjang sekaligus.
+   - **Solusi Baru:** Menerapkan **Dynamic Context Adaptation Engine** yang secara cerdas melakukan **Pengurangan Konteks (*Pruning*)** untuk model kecil dan **Penambahan Konteks (*Augmentation/Few-Shot*)** untuk model khusus/vision.
+
+3. **Pemberantasan Svelte 5 Circular Reactivity (Pencegahan 500 Internal Error):**
+   - Menghapus mutasi `$state` di dalam `$effect` yang menyebabkan *circular update loop* (`Maximum update depth exceeded`) saat hidrasi SSR. Menetapkan aturan baku penggunaan `$derived` murni.
+
+4. **Kepatuhan Murni Data Dinamis (Zero Hardcoding):**
+   - Seluruh konten Knowledge Base dan identitas personalisasi 100% diinput manual oleh pengguna dari database PostgreSQL (`knowledge_base` dan `bot_configs`), tanpa ada data uji coba fiktif di aplikasi produksi.
+
+---
+
+## 2. Arsitektur Dynamic Prompt Engine (Eksternalisasi Markdown Modular)
+
+Struktur berkas backend baru di bawah `apps/api/src/adapters/ai/prompts/`:
+
+```
+apps/api/src/adapters/ai/prompts/
+├── templates/
+│   ├── admin-store.system.md         <- Template utama Admin Toko (Frontier Pro)
+│   ├── assistant-owner.system.md     <- Template utama Asisten Pemilik (Frontier Pro)
+│   └── compact-free.system.md        <- Template ringkas minimalis (Model Gratis/Kecil)
+├── partials/
+│   ├── temporal-wib.md               <- Stempel waktu server real-time WIB
+│   ├── strict-json-format.md         <- Skema JSON terstruktur murni
+│   ├── plain-text-format.md          <- Format percakapan teks santun bebas JSON
+│   ├── anti-leak-guard.md            <- Guardrail larangan membocorkan modal/brankas
+│   ├── owner-trust-access.md         <- Izin akses data modal/margin untuk Owner
+│   └── few-shot-qwen.md              <- Contoh konkret zero/few-shot untuk model asing
+├── prompt.types.ts                   <- Definisi tipe parameter template (< 40 baris)
+└── prompt-engine.ts                  <- Compiler perakit modular (< 80 baris, File-Level SRP)
+```
+
+### Mekanisme Adaptasi Konteks Dinamis Berdasarkan `ModelProfile`:
 
 ```mermaid
 flowchart TD
-    subgraph UserSpace["Input Mandiri Pengguna (Tenant)"]
-        KB["Knowledge Base Resmi<br/>(Katalog, Harga, Jam Buka, Secret Internal)"]
-        Persona["Personalisasi Bisnis<br/>(Nama Bot, Sapaan Awal, Gaya Bahasa)"]
+    Req["Request Masuk (Pesan Chat WhatsApp)"] --> Resolver["Model & Persona Resolver"]
+    Resolver --> Profile["Ambil ModelProfile & Tier Langganan"]
+
+    subgraph PromptEngine["Dynamic Prompt Engine (Compiler Modular)"]
+        Profile --> Decision{"Evaluasi Kapasitas Model"}
+        
+        Decision -->|"Model Kecil / Gratis (Nemotron/Beam-Free)"| Pruning["✂️ PENGURANGAN KONTEKS (Pruning):<br/>• Pakai compact-free.system.md<br/>• Buang skema JSON multi-tasking<br/>• Sisipkan plain-text-format.md<br/>• Sisipkan aturan anti-leak ringkas"]
+        
+        Decision -->|"Model Vision / Khusus (Qwen VL)"| Augment["➕ PENAMBAHAN KONTEKS (Augmentation):<br/>• Instruksi sistem bahasa Inggris (en)<br/>• Sisipkan few-shot-qwen.md (contoh konkret)<br/>• Format skema JSON eksplisit"]
+        
+        Decision -->|"Model Penalaran (DeepSeek-R1)"| Reasoning["🧠 PENALARAN EKSPLORATIF:<br/>• Hapus contoh few-shot (hindari CoT clash)<br/>• Aktifkan stripThinkingTags: true<br/>• Sisipkan format JSON terstruktur"]
+        
+        Decision -->|"Model Frontier Pro (Gemini 2.5 / GPT-4o)"| FullContext["⭐ KONTEKS LENGKAP:<br/>• Template admin-store / assistant-owner<br/>• Injeksi stempel waktu real-time WIB<br/>• Full strict-json-format & tipografi chat"]
     end
 
-    subgraph BackendCore["Pengaturan Prompt Baku Backend (Non-Bypass)"]
-        TimeWib["1. Runtime Temporal Injection<br/>(Hari, Tanggal, Jam Real-time WIB)"]
-        ModelProf["2. Model-Specific Profile Adapting<br/>(strict_json vs plain_text_regex, temp, tokens)"]
-        DualGuard["3. Dual-Persona Role Boundaries<br/>(Admin: Anti-Leak & Tolak Non-Toko<br/>Asisten: Buka Margin, Coding & Akuntansi)"]
-        ChatStyle["4. Formatting & Typography Chat<br/>(Paragraf 2-3 baris, Bullet •, Backticks)"]
-        AutoFall["5. Automated Graceful Fallback<br/>(Fallback instan jika model utama error)"]
-    end
-
-    UserSpace --> Builder["PersonaPromptBuilder.buildSystemPrompt()"]
-    BackendCore --> Builder
-    Builder --> Gateway["Vercel AI Gateway"]
+    Pruning --> Assembler["Rakit String Prompt Final"]
+    Augment --> Assembler
+    Reasoning --> Assembler
+    FullContext --> Assembler
+    Assembler --> Gateway["Kirim ke Vercel AI Gateway"]
 ```
 
-### Rincian 5 Parameter Baku Backend:
-1. **Runtime Temporal Grounding (WIB):**
-   - Backend menyuntikkan stempel waktu real-time: `WAKTU SISTEM SAAT INI (WIB): [Hari, DD MMMM YYYY, HH:mm:ss WIB]`.
-   - Menghilangkan halusinasi jam buka/tutup toko dan menghitung estimasi tanggal pemesanan/pengiriman secara akurat.
-2. **Model Profiling Dinamis (`ModelProfile`):**
-   - Model Canggih / Pro & Beam-Free: Menggunakan format `strict_json` `{ reply, intent, summary, transactions }`.
-   - Model Gratis Sederhana (seperti Nemotron): Menggunakan format `plain_text_regex` dengan ekstraksi transaksi terpisah agar tidak gagal format JSON.
-   - Model Penalaran (DeepSeek-R1): Pembersihan tag internal `<think>...</think>` sebelum balasan dikirim ke WhatsApp pengguna.
-   - Temperature dinamis: 0.2 untuk transaksi/akurasi KB, 0.3 untuk copywriting.
-3. **Dual-Persona Role Boundary Directives:**
-   - **Admin Toko (Pelanggan):** Wajib 100% mematuhi KB resmi, tolak membocorkan data modal/margin/supplier internal, tolak permintaan tugas di luar toko (coding, matematika umum).
-   - **Asisten Pemilik (Owner):** Membuka data modal/margin internal secara legal, proaktif membantu pembuatan kode skrip/ide promosi bisnis, dan otomatis mengekstrak transaksi keuangan ke format pembukuan.
-4. **Tipografi & Format Chat WhatsApp/Telegram:**
-   - Paragraf ringkas maksimal 2–3 kalimat (tanpa *wall of text*).
-   - Poin opsi atau katalog wajib menggunakan simbol bullet `• `.
-   - Kode pemrograman wajib dibungkus dalam blok triple backticks ` ``` `.
-5. **Default Fallback Otomatis:**
-   - Jika model utama mengalami error/timeout, sistem otomatis mengalihkan ke model cadangan gratis terbaik: `reflection/beam-free`.
+#### Tabel Matriks Adaptasi Konteks per Kategori Model:
+| Kategori Model | Model Contoh | Strategi Konteks | Modul Prompt yang Disusun |
+|---|---|---|---|
+| **Frontier Pro (LMM/VLM)** | `google/gemini-2.5-flash`, `openai/gpt-4o`, `openai/gpt-4o-mini` | **Konteks Penuh** | `admin/assistant.system.md` + `temporal-wib.md` + `strict-json-format.md` + `anti-leak-guard.md` |
+| **Model Gratis Ringan** | `nvidia/nemotron-3.5-lightning-free`, `reflection/beam-free` | **Konteks Ringkas (*Pruning*)** | `compact-free.system.md` + `plain-text-format.md` + `temporal-wib.md` *(Tanpa JSON ganda yang membebani)* |
+| **Model Multimodal Asing** | `alibaba/qwen3-vl-instruct` | **Penambahan Konteks (*Few-Shot*)** | `admin/assistant.system.md` (English System) + `few-shot-qwen.md` + `strict-json-format.md` |
+| **Model Penalaran Murni** | `deepseek/deepseek-r1` | **Struktural Bersih (Anti CoT Clash)** | `admin/assistant.system.md` + `strict-json-format.md` *(Tanpa few-shot, strip `<think>`)* |
 
 ---
 
-## 3. Spesifikasi Pemilihan Model AI Berdasarkan Hak Akses Tingkat Langganan
+## 3. Spesifikasi Pemilihan Model AI Berdasarkan Hak Akses Langganan
 
-### Aturan Bisnis & Hak Akses Paket:
-| Kategori Paket | Akses Model Gratis | Akses Model Berbayar (Pro) | Model Default Smart Auto-Select |
-|---|:---:|:---:|---|
-| **🌱 Akun Gratis** | ✅ **Bisa Akses Penuh** | ❌ **Terkunci** (`is_accessible: false`, HTTP 403 Forbidden) | `reflection/beam-free` (Skor 95.5%) |
-| **👑 Akun Pro** | ✅ **Bisa Akses Penuh** | ✅ **Bisa Akses Penuh** (`is_accessible: true` untuk semua) | `google/gemini-2.5-flash` (Skor 97.9%) |
+### Aturan Bisnis & Penegakan Tingkat Langganan:
+1. **🌱 Akun Gratis (*Free Tier*):**
+   - Hanya memiliki izin memilih model dari kategori **Gratis** (`reflection/beam-free`, `nvidia/nemotron-free`, `reflection/beam`).
+   - Model Berbayar (Pro) berstatus **Terkunci** secara visual di UI (badge `🔒 Perlu Pro`, sakelar dinonaktifkan / `disabled`).
+   - Jika pengguna Gratis mencoba menembus request simpan ke backend, endpoint `PUT /api/owner/personalisasi` langsung menggagalkan dengan status **HTTP 403 `TIER_INSUFFICIENT`**.
+2. **👑 Akun Pro (*Pro Tier*):**
+   - Memiliki izin penuh memilih **seluruh model** (baik Gratis maupun Berbayar).
+3. **Pilihan Otomatis Cerdas (*Smart Auto-Select*):**
+   - Pengguna dapat menyalakan sakelar *"Pilih Bot secara Otomatis"*.
+   - Jika akun Pro: otomatis menyetel model terbaik `google/gemini-2.5-flash` (atau `openai/gpt-4o-mini`).
+   - Jika akun Gratis: otomatis menyetel model gratis terbaik `reflection/beam-free`.
 
-### Katalog Model AI Teruji Hasil Riset Empiris:
-1. `google/gemini-2.5-flash` (Pro / Berbayar) — Tipe: `LMM`, Skor: **97.9%**, Badge: `Rekomendasi Utama`
-2. `openai/gpt-4o-mini` (Pro / Berbayar) — Tipe: `LMM`, Skor: **96.1%**, Badge: `Tercepat & Hemat`
-3. `reflection/beam-free` (Free / Gratis) — Tipe: `LMM`, Skor: **95.5%**, Badge: `Juara Gratis`
-4. `anthropic/claude-haiku-4.5` (Pro / Berbayar) — Tipe: `LMM`, Skor: **97.1%**, Badge: `Akurat & Cepat`
-5. `openai/gpt-4o` (Pro / Berbayar) — Tipe: `VLM`, Skor: **97.9%**, Badge: `Multimodal Vision`
-6. `deepseek/deepseek-r1` (Pro / Berbayar) — Tipe: `LLM`, Skor: **96.7%**, Badge: `Penalaran Mendalam`
-7. `nvidia/nemotron-3.5-lightning-free` (Free / Gratis) — Tipe: `LLM`, Skor: **94.0%**, Badge: `Gratis Percakapan`
-8. `alibaba/qwen3-vl-instruct` (Pro / Berbayar) — Tipe: `VLM`, Skor: **90.0%**, Badge: `Vision Multimodal`
-9. `anthropic/claude-sonnet-4.6` (Pro / Berbayar) — Tipe: `VLM`, Skor: **90.2%**, Badge: `Hybrid Reasoning`
-10. `reflection/beam` (Free / Gratis) — Tipe: `LLM`, Skor: **92.0%**, Badge: `Cadangan Gratis`
-
----
-
-## 4. Struktur Modul & Dekomposisi Berkas
-
-```
-apps/
-├── api/src/
-│   ├── adapters/ai/
-│   │   ├── eval/model-profiles.registry.ts     # Registri profil model teruji (~180 baris)
-│   │   ├── extractor/chat-extractor.ts         # Ekstraktor respons chat adaptif (~150 baris)
-│   │   └── prompt/persona-prompt.builder.ts    # Kompilasi prompt dengan injeksi waktu & boundaries (~140 baris)
-│   └── modules/
-│       ├── chat/pipeline/
-│       │   ├── context-loader.ts               # Pemuat KB & Persona riil dari database (~65 baris)
-│       │   └── owner-resolver.ts               # Resolusi fallback model efektif (~200 baris)
-│       └── owner/personalisasi/
-│           ├── model-access.guard.ts           # Validasi akses model berdasarkan subscription (~220 baris)
-│           ├── actions/get-personalisasi.action.ts (~20 baris)
-│           ├── actions/update-personalisasi.action.ts (~60 baris)
-│           └── controllers/get-available-models.controller.ts (~20 baris)
-│
-└── web/src/panels/users/persona-bot/
-    ├── PersonaBotRoot.svelte                   # Container utama terhubung ke API riil (~100 baris)
-    ├── persona-bot.types.ts                    # Kontrak interface data model & persona (~25 baris)
-    ├── persona-bot.constants.ts                # Master katalog model teruji (~110 baris)
-    ├── implementasi.md                         # Dokumen rencana ini
-    └── components/
-        ├── PersonaBotHeader.svelte             # Header halaman (~40 baris)
-        ├── BotGreetingForm.svelte              # Formulir identitas bot (~125 baris)
-        ├── ChatPreviewCard.svelte              # Pratinjau chat dinamis (~110 baris)
-        └── AiModelSelectionCard.svelte         # Kartu pemilihan model AI aman SSR (~230 baris)
-```
+### Katalog Model AI Teruji yang Ditampilkan di UI:
+Tabel UI hanya menampilkan model yang telah terbukti lulus benchmark empiris kita pada Vercel AI Gateway:
+- **Model Berbayar (Pro):**
+  1. `google/gemini-2.5-flash` — LMM, Skor: **97.9%**, Badge: `Rekomendasi Utama`
+  2. `openai/gpt-4o-mini` — LMM, Skor: **96.1%**, Badge: `Tercepat & Hemat`
+  3. `anthropic/claude-haiku-4.5` — LMM, Skor: **97.1%**, Badge: `Akurat & Cepat`
+  4. `openai/gpt-4o` — VLM, Skor: **97.9%**, Badge: `Multimodal Vision`
+  5. `deepseek/deepseek-r1` — LLM, Skor: **96.7%**, Badge: `Penalaran Mendalam`
+  6. `alibaba/qwen3-vl-instruct` — VLM, Skor: **90.0%**, Badge: `Vision Multimodal`
+  7. `anthropic/claude-sonnet-4.6` — VLM, Skor: **90.2%**, Badge: `Hybrid Reasoning`
+- **Model Gratis (Free):**
+  1. `reflection/beam-free` — LMM, Skor: **95.5%**, Badge: `Juara Gratis`
+  2. `nvidia/nemotron-3.5-lightning-free` — LLM, Skor: **94.0%**, Badge: `Gratis Percakapan`
+  3. `reflection/beam` — LLM, Skor: **92.0%**, Badge: `Cadangan Gratis`
 
 ---
 
-## 5. Pencegahan Bug Reaktivitas Svelte 5 (Pencegahan 500 Internal Error)
+## 4. Struktur Berkas & Pembagian Kerja (Kepatuhan Penuh AGENTS.md)
 
-### Akar Masalah 500 Internal Error:
-Penggunaan `$effect` yang membaca sinyal `models` (`models.map()`) dan langsung menugaskan ulang kembali ke sinyal yang sama (`models = ...`) memicu *circular reactivity loop* (`Maximum update depth exceeded`) yang menyebabkan SvelteKit mengalami crash saat hidrasi halaman `/dashboard?tab=persona-bot`.
+Sesuai aturan batas keras (< 400 baris per file) dan "1 berkas = 1 fungsi operasi":
 
-### Solusi Baku Svelte 5 Runes:
-- **DILARANG** melakukan mutasi state di dalam `$effect` terhadap sinyal yang dibaca di dalamnya.
-- Gunakan `$derived` murni untuk menghitung `isAccessible` secara reaktif dan deterministik:
-  ```ts
-  let isUserPro = $derived(
-    propIsPro ?? ($authState.subscription?.plan_name?.toLowerCase() === 'pro')
-  );
+### Backend (`apps/api`):
+1. `src/adapters/ai/prompts/templates/*.md`: Menyimpan teks template sistem murni.
+2. `src/adapters/ai/prompts/partials/*.md`: Menyimpan fragmen instruksi modular.
+3. `src/adapters/ai/prompts/prompt-engine.ts` (± 75 baris): Perakit teks prompt yang membaca berkas `.md` secara efisien dan mengisi variabel `{{businessName}}`, `{{knowledgeBase}}`, dll.
+4. `src/modules/owner/personalisasi/model-access.guard.ts` (± 180 baris): Pemeriksa hak akses langganan dan penyedia katalog model teruji.
+5. `src/modules/owner/personalisasi/actions/update-personalisasi.action.ts` (± 60 baris): Penyimpan `selected_model_id` ke database.
 
-  let paginatedModels = $derived(
-    models
-      .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-      .map((m) => ({
-        ...m,
-        isAccessible: isUserPro ? true : m.tier === 'free'
-      }))
-  );
-  ```
-- Dengan pola ini, halaman dirender secara instan tanpa efek samping, bebas dari *circular update*, dan aman 100% dari 500 Internal Error.
+### Frontend (`apps/web`):
+1. `src/panels/users/persona-bot/persona-bot.constants.ts` (± 110 baris): Daftar konstanta model teruji beserta skor dan tipenya.
+2. `src/panels/users/persona-bot/persona-bot.types.ts` (± 25 baris): Interface tipe data model dan konfigurasi persona.
+3. `src/panels/users/persona-bot/components/AiModelSelectionCard.svelte` (± 240 baris):
+   - Tabel model interaktif (status, nama, skor uji, jenis, tipe).
+   - Hak akses aman SSR menggunakan `$derived` (bebas dari error loop `$effect`).
+   - Paginasi 5 item per halaman.
+4. `src/panels/users/persona-bot/PersonaBotRoot.svelte` (± 90 baris):
+   - Mengambil data persona tersimpan dari API `GET /api/owner/personalisasi`.
+   - Mengirim perubahan nama bot dan arahan ke API `PUT /api/owner/personalisasi`.
+5. `src/panels/users/knowledge-base/components/AddEntryModal.svelte` (± 130 baris):
+   - Formulir bersih tanpa tombol preset toko uji coba (input manual murni).
 
 ---
 
-## 6. Checklist Verifikasi & Kriteria Keberhasilan
+## 5. Rencana Pengujian & Kriteria Kelulusan (Verification Protocol)
 
-- [x] Tidak ada berkas yang melebihi 400 baris (Kepatuhan Penuh AGENTS.md).
-- [x] Zero hardcoding: Data Warung Bu Rina, Zahra Hijab, dan Bengkel Motor dihapus dari kode produksi aplikasi.
-- [x] Backend menyuntikkan waktu WIB real-time dan aturan keamanan dual-persona secara otomatis.
-- [x] Akun Gratis hanya dapat mengakses model Gratis; model Berbayar terkunci secara visual dan ditolak 403 oleh backend.
-- [x] Akun Pro dapat memilih seluruh model (Gratis maupun Berbayar).
-- [x] Svelte 5 bebas dari circular effect loop; halaman `/dashboard?tab=persona-bot` memuat dengan status 200 OK tanpa 500 Internal Error.
-- [x] Seluruh unit test lulus (`16 pass, 0 fail`).
+1. **Pengujian Reaktivitas Frontend (Eliminasi 500 Error):**
+   - Halaman `localhost/dashboard?tab=persona-bot` dimuat langsung di browser tanpa menampilkan layar putih ataupun pesan `500 Internal Error`.
+   - Menjalankan `bun run check` pada `apps/web` dengan hasil: `0 errors, 0 warnings`.
+2. **Pengujian Penegakan Hak Akses Langganan:**
+   - Unit test Bun memastikan pengguna Paket Gratis **dilarang** mengaktifkan model Berbayar (HTTP 403 `TIER_INSUFFICIENT`).
+   - Pengguna Paket Pro dapat mengaktifkan model Gratis maupun Berbayar.
+3. **Pengujian Dynamic Prompt Engine:**
+   - Memastikan saat model `nvidia/nemotron-free` dipanggil, prompt yang dihasilkan adalah versi ringkas (*compact plain text* tanpa skema JSON berat).
+   - Memastikan saat model `google/gemini-2.5-flash` dipanggil, prompt yang dihasilkan adalah versi lengkap dengan skema JSON dan stempel waktu WIB.
+4. **Verifikasi Kerapian & Batas Baris:**
+   - Memastikan tidak ada berkas `.ts` atau `.svelte` yang melebihi 400 baris.
+   - Seluruh teks prompt tersimpan rapi di berkas `.md`.
