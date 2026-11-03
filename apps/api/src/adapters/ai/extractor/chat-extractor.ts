@@ -3,6 +3,7 @@ import { chatWithFallback } from '../client/chat-fallback';
 import { JsonParser } from '../parser/json-parser';
 import { PersonaPromptBuilder } from '../prompt/persona-prompt.builder';
 import { ChatStylerFormatter } from '../formatter/chat-styler.formatter';
+import { modelProfilesRegistry } from '../eval/model-profiles.registry';
 import type { AiExtractionResult, AiTransactionItem, BusinessContext } from '../types';
 
 const aiLogger = createModuleLogger('ai-chat-extractor');
@@ -18,7 +19,8 @@ export async function extractChatResponse(
   model?: string
 ): Promise<AiExtractionResult> {
   const startTime = Date.now();
-  const systemPrompt = PersonaPromptBuilder.buildSystemPrompt(persona, businessContext);
+  const profile = modelProfilesRegistry.getProfile(model || 'google/gemini-2.5-flash');
+  const systemPrompt = PersonaPromptBuilder.buildSystemPrompt(persona, businessContext, profile);
 
   try {
     const conversationMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
@@ -39,11 +41,11 @@ export async function extractChatResponse(
     conversationMessages.push({ role: 'user', content: userText });
 
     const chatRes = await chatWithFallback({
-      model,
+      model: profile.modelId,
       messages: conversationMessages,
-      temperature: 0.2,
-      max_tokens: 4000,
-      timeout_ms: 22000,
+      temperature: profile.temperature,
+      max_tokens: profile.maxTokens,
+      timeout_ms: 25000,
     });
 
     const latencyMs = Date.now() - startTime;

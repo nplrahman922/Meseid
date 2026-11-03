@@ -34,13 +34,121 @@ export interface OwnerAccessibleModel {
   id: string;
   provider: string;
   model_id: string;
+  name: string;
   tier: "free" | "pro";
+  jenis: "Gratis" | "Berbayar";
+  tipe: "LLM" | "LMM" | "VLM";
+  score: number;
+  badge?: string;
   currency: string;
   price_input_per_1m: string;
   price_output_per_1m: string;
   is_accessible: boolean;
   is_current: boolean;
 }
+
+export const TESTED_MODELS_METADATA: Record<
+  string,
+  {
+    name: string;
+    tipe: "LLM" | "LMM" | "VLM";
+    score: number;
+    badge: string;
+    priority: number;
+  }
+> = {
+  "google/gemini-2.5-flash": {
+    name: "Google Gemini 2.5 Flash",
+    tipe: "LMM",
+    score: 97.9,
+    badge: "Rekomendasi Utama",
+    priority: 1,
+  },
+  "openai/gpt-4o-mini": {
+    name: "OpenAI GPT-4o Mini",
+    tipe: "LMM",
+    score: 96.1,
+    badge: "Tercepat & Paling Hemat",
+    priority: 2,
+  },
+  "reflection/beam-free": {
+    name: "Reflection Beam Free",
+    tipe: "LMM",
+    score: 95.5,
+    badge: "Juara Kategori Gratis",
+    priority: 3,
+  },
+  "anthropic/claude-haiku-4.5": {
+    name: "Claude 3.5 Haiku",
+    tipe: "LMM",
+    score: 97.1,
+    badge: "Akurat & Cepat",
+    priority: 4,
+  },
+  "openai/gpt-4o": {
+    name: "OpenAI GPT-4o Omni",
+    tipe: "VLM",
+    score: 97.9,
+    badge: "Multimodal Vision",
+    priority: 5,
+  },
+  "deepseek/deepseek-r1": {
+    name: "DeepSeek R1",
+    tipe: "LLM",
+    score: 96.7,
+    badge: "Penalaran Mendalam",
+    priority: 6,
+  },
+  "nvidia/nemotron-3.5-lightning-free": {
+    name: "NVIDIA Nemotron 3.5 Free",
+    tipe: "LLM",
+    score: 94.0,
+    badge: "Gratis Percakapan",
+    priority: 7,
+  },
+  "alibaba/qwen3-vl-instruct": {
+    name: "Qwen 3 VL Instruct",
+    tipe: "VLM",
+    score: 90.0,
+    badge: "Vision Multimodal",
+    priority: 8,
+  },
+  "anthropic/claude-sonnet-4.6": {
+    name: "Claude 3.7 Sonnet",
+    tipe: "VLM",
+    score: 90.2,
+    badge: "Hybrid Reasoning",
+    priority: 9,
+  },
+  "reflection/beam": {
+    name: "Reflection Beam",
+    tipe: "LLM",
+    score: 92.0,
+    badge: "Cadangan Gratis",
+    priority: 10,
+  },
+  "google/gemini-3.1-flash-image": {
+    name: "Gemini 3.1 Flash Image",
+    tipe: "VLM",
+    score: 89.5,
+    badge: "Image Processing",
+    priority: 11,
+  },
+  "meta/llama-3.3-70b": {
+    name: "Llama 3.3 70B Instruct",
+    tipe: "LLM",
+    score: 88.0,
+    badge: "Open Weights",
+    priority: 12,
+  },
+  "deepseek/deepseek-v4-flash-vision-exp": {
+    name: "DeepSeek V4 Vision Exp",
+    tipe: "VLM",
+    score: 87.5,
+    badge: "Vision Experimental",
+    priority: 13,
+  },
+};
 
 /**
  * Mengambil informasi langganan aktif owner.
@@ -179,36 +287,59 @@ export async function getAvailableModelsForOwner(
 
   const currentModelId = botConfig?.selected_model_id || null;
 
+  const defaultModelId = subscription.is_pro
+    ? "google/gemini-2.5-flash"
+    : "reflection/beam-free";
+  const activeSelectedId = currentModelId || defaultModelId;
+
+  const testedModelIds = Object.keys(TESTED_MODELS_METADATA);
+
   const rawModels = await tx<AiModelAccessRecord[]>`
     SELECT id, provider, model_id, tier, enabled, currency,
            price_input_per_1m, price_output_per_1m
     FROM ai_models
-    WHERE enabled = true
-    ORDER BY 
-      CASE WHEN tier = 'free' THEN 0 ELSE 1 END ASC,
-      provider ASC,
-      model_id ASC;
+    WHERE enabled = true AND model_id = ANY(${testedModelIds})
   `;
 
-  const models: OwnerAccessibleModel[] = rawModels.map((m) => {
-    const isAccessible = subscription.is_pro ? true : m.tier === "free";
-    const isCurrent = m.model_id === currentModelId;
-    return {
-      id: m.id,
-      provider: m.provider,
-      model_id: m.model_id,
-      tier: m.tier,
-      currency: m.currency,
-      price_input_per_1m: m.price_input_per_1m,
-      price_output_per_1m: m.price_output_per_1m,
-      is_accessible: isAccessible,
-      is_current: isCurrent,
-    };
-  });
+  const models: OwnerAccessibleModel[] = rawModels
+    .map((m) => {
+      const meta = TESTED_MODELS_METADATA[m.model_id] || {
+        name: m.model_id,
+        tipe: "LLM" as const,
+        score: 85,
+        badge: "Teruji",
+        priority: 99,
+      };
+
+      const isAccessible = subscription.is_pro ? true : m.tier === "free";
+      const isCurrent = m.model_id === activeSelectedId;
+
+      return {
+        id: m.id,
+        provider: m.provider,
+        model_id: m.model_id,
+        name: meta.name,
+        tier: m.tier as "free" | "pro",
+        jenis: m.tier === "free" ? ("Gratis" as const) : ("Berbayar" as const),
+        tipe: meta.tipe,
+        score: meta.score,
+        badge: meta.badge,
+        currency: m.currency,
+        price_input_per_1m: m.price_input_per_1m,
+        price_output_per_1m: m.price_output_per_1m,
+        is_accessible: isAccessible,
+        is_current: isCurrent,
+      };
+    })
+    .sort((a, b) => {
+      const pA = TESTED_MODELS_METADATA[a.model_id]?.priority ?? 99;
+      const pB = TESTED_MODELS_METADATA[b.model_id]?.priority ?? 99;
+      return pA - pB;
+    });
 
   return {
     subscription,
-    current_model_id: currentModelId,
+    current_model_id: activeSelectedId,
     models,
   };
 }

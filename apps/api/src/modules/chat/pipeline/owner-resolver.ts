@@ -154,7 +154,7 @@ export class OwnerResolver {
    * Menyelesaikan model AI yang sah untuk bot owner saat runtime chat.
    */
   static async resolveEffectiveModel(ownerId: string): Promise<string> {
-    const DEFAULT_FALLBACK_MODEL = "nvidia/nemotron-3.5-lightning-free";
+    const DEFAULT_FALLBACK_MODEL = "reflection/beam-free";
     try {
       return await withSystemContext(async (tx) => {
         const [botConfig] = await tx<{ selected_model_id: string | null }[]>`

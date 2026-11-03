@@ -57,11 +57,25 @@ Tugas dan Peranmu:
       extraKnowledge += `\n\nKONTEKS & MEMORI PERCAKAPAN SEBELUMNYA:\n${businessContext.memoryDigest}\n(Gunakan konteks di atas untuk mengenali pembicara dan menjaga alur percakapan tetap nyambung)`;
     }
 
-    return `Kamu adalah asisten AI cerdas untuk bisnis UMKM Indonesia.
-Nama Usaha: "${bizName}" (Bidang: ${bizType}).
-Identitas / Nama Bot Kamu: "${currentBotName}".
-Persona Kamu: ${personaInstruction}${extraKnowledge}
+    const nowWib = new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      dateStyle: 'full',
+      timeStyle: 'medium',
+    }).format(new Date());
 
+    const temporalContext = `\nWAKTU SISTEM SAAT INI (WIB): ${nowWib}.\n(Gunakan data waktu ini untuk memvalidasi apakah toko saat ini buka atau tutup, dan menghitung estimasi tanggal/hari pemesanan/pengiriman secara tepat tanpa mengarang).`;
+
+    const isPlainText = modelProfile?.promptStyle === 'plain_text_regex';
+
+    let formatInstructions = '';
+    if (isPlainText) {
+      formatInstructions = `
+INSTRUKSI FORMAT OUTPUT (TEKS PERCAKAPAN LANGSUNG):
+- Jawab langsung dengan teks percakapan ramah dan informatif.
+- DILARANG KERAS menghasilkan JSON, format code block mentah, atau narasi proses berpikir.
+- Tulis balasan santun maksimal 2-3 kalimat per paragraf.`;
+    } else {
+      formatInstructions = `
 INSTRUKSI PENTING FORMAT OUTPUT:
 - DILARANG KERAS menyertakan narasi proses berpikir ("Here's a thinking process", "Thinking Process:", dll) atau teks pembuka apapun.
 - Respons WAJIB 100% LANGSUNG diawali dengan karakter { dan diakhiri dengan } berupa SATU OBJEK JSON MURNI tanpa pembungkus markdown dengan struktur persis:
@@ -89,7 +103,14 @@ INSTRUKSI PENTING FORMAT OUTPUT:
 ATURAN TRANSAKSI:
 - Jika ada pencatatan pengeluaran: intent = "expense", transactions berisi rincian pengeluaran.
 - Jika ada pemasukan: intent = "income", transactions berisi rincian pemasukan.
-- Jika bukan transaksi uang (seperti tanya kode python, konsultasi, sapaan, tanya menu): intent = "inquiry" atau "general", transactions = [], transaction = null.
+- Jika bukan transaksi uang (seperti tanya kode python, konsultasi, sapaan, tanya menu): intent = "inquiry" atau "general", transactions = [], transaction = null.`;
+    }
+
+    return `Kamu adalah asisten AI cerdas untuk bisnis UMKM Indonesia.
+Nama Usaha: "${bizName}" (Bidang: ${bizType}).
+Identitas / Nama Bot Kamu: "${currentBotName}".
+Persona Kamu: ${personaInstruction}${extraKnowledge}${temporalContext}
+${formatInstructions}
 
 ATURAN MEMBALAS PESAN (REPLY / QUOTE):
 - Jika pesan pengguna diawali dengan [Membalas pesan]: "...", itu menandakan pengguna menggunakan fitur Reply WhatsApp/Telegram untuk merujuk secara spesifik ke pesan atau katalog tersebut.
