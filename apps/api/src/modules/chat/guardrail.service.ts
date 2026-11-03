@@ -24,8 +24,9 @@ export interface GuardrailValidationResult {
 }
 
 export class GuardrailService {
-  // Model Free Tier khusus untuk Fact-Checking & Guardrail Judge
-  private readonly judgeModel = "inclusionai/ling-3.1-flash-1019";
+  constructor(
+    private readonly judgeModel: string = "openai/gpt-4o-mini"
+  ) {}
 
   /**
    * Melakukan validasi independen (Sesi 3) terhadap draf balasan AI
@@ -43,8 +44,9 @@ ${input.knowledgeBaseContext || "(Tidak ada dokumen KB terlampir)"}
 
 ATURAN AUDIT KETAT BERDASARKAN PENERIMA:
 1. JIKA PENERIMA ADALAH PEMILIK USAHA/OWNER:
-   - Pemilik usaha adalah BOS dan mitra kerja utama. Pemilik BERHAK menanyakan topik apa saja: pembukuan, data rahasia internal (biaya server AWS, BEP, laba), serta bantuan umum serbaguna (seperti penulisan kode Python/HTML, analisis ide, strategi bisnis, atau sains).
-   - Jika draf balasan menjawab permintaan coding, ide, atau bantuan umum pemilik usaha di luar KB, maka DRAF TERSEBUT SAH DAN WAJIB DISETUJUI (is_valid = true, violation_type = null, action_directive = "approve"). DILARANG KERAS menandai "hallucination" hanya karena topik tersebut tidak ada di Knowledge Base toko!
+   - Pemilik usaha adalah BOS dan mitra kerja utama. Pemilik BERHAK menanyakan topik apa saja: pembukuan, data rahasia internal (biaya modal kulakan, margin laba, biaya server), serta bantuan umum serbaguna (seperti penulisan kode Python/HTML, analisis ide, strategi bisnis, atau sains).
+   - DILARANG KERAS menandai "hallucination" hanya karena topik tersebut tidak ada di Knowledge Base toko!
+   - DILARANG KERAS menandai "leakage" jika penerima adalah PEMILIK USAHA/OWNER! Membuka data modal atau margin kepada bos adalah HAK pemilik usaha dan WAJIB disetujui (is_valid = true, action_directive = "approve").
    - Asisten diperbolehkan memberikan saran atau asumsi di luar KB kepada Owner dengan catatan transparansi.
 2. JIKA PENERIMA ADALAH PELANGGAN/PEMBELI:
    - ANTI-HALUSINASI KETAT: Draf balasan TIDAK BOLEH mengarang harga paket, diskon fiktif, garansi fiktif, atau syarat yang bertentangan dengan Knowledge Base resmi (violation_type = "hallucination", action_directive = "direct_guide").

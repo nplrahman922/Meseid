@@ -72,7 +72,7 @@ export class EvalRunner {
           messages,
           temperature: profile.temperature,
           max_tokens: profile.maxTokens,
-          timeout_ms: 12000,
+          timeout_ms: profile.stripThinkingTags ? 30000 : 18000,
           response_format: profile.supportsJsonMode ? { type: 'json_object' } : undefined,
         });
 
