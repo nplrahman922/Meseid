@@ -68,5 +68,7 @@ describe('Dynamic Prompt Engine & Context Adaptation Tests', () => {
     expect(prompt).toContain('WAKTU SISTEM SAAT INI (WIB)');
     expect(prompt).toContain('HAK AKSES PEMILIK BISNIS (OWNER TRUST)');
     expect(prompt).toContain('SATU OBJEK JSON MURNI');
+    expect(prompt).toContain('ATURAN MEMBALAS PESAN (REPLY / QUOTE)');
+    expect(prompt).toContain('ATURAN FORMAT & TIPOGRAFI BALASAN');
   });
 });

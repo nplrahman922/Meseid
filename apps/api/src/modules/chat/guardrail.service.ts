@@ -77,7 +77,9 @@ CATATAN:
 - Jika is_valid adalah false karena ada pelanggaran, sertakan "violation_type" ("hallucination", "leakage", "inappropriate", atau "corrupted"), tentukan "action_directive", tuliskan "critique" (evaluasi kekurangan draf), serta susun "corrected_reply" konsensus terbaik yang ramah dan siap dikirim ke pengguna.
 - Jika draf balasan sudah aman dan benar, is_valid = true, violation_type = null, action_directive = "approve", critique = "Lolos validasi", dan corrected_reply = null.`;
 
-    const userAuditPrompt = `PERTANYAAN PENGGUNA:
+    const userAuditPrompt = `TARGET PENERIMA BALASAN: ${isCustomer ? "PELANGGAN / PEMBELI (Wajib proteksi kebocoran data internal)" : "PEMILIK USAHA / OWNER (BOS berhak tahu modal, keuangan, dan margin)"}
+
+PERTANYAAN PENGGUNA:
 "${input.userMessage}"
 
 DRAF BALASAN AI YANG AKAN DIAUDIT:

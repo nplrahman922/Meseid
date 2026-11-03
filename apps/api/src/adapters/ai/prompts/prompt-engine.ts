@@ -67,6 +67,12 @@ export class PromptEngine {
       partials.push(readMarkdown(join(PARTIALS_DIR, 'few-shot-qwen.md')));
     }
 
+    // Partials Aturan Membalas Pesan Kutipan (WhatsApp / Telegram Reply)
+    partials.push(readMarkdown(join(PARTIALS_DIR, 'quoted-reply-rule.md')));
+
+    // Partials Format & Tipografi Pesan Chat (WhatsApp / Telegram)
+    partials.push(readMarkdown(join(PARTIALS_DIR, 'chat-typography-format.md')));
+
     systemPrompt += '\n\n' + partials.filter(Boolean).join('\n\n');
 
     // 3. Substitusi variabel dinamis
