@@ -1,12 +1,32 @@
 import { executeChatCompletion } from '../client/gateway-client';
 import { PersonaPromptBuilder } from '../prompt/persona-prompt.builder';
-import { EVAL_DATASET } from './eval.dataset';
+import { ADMIN_EVAL_DATASET, ASSISTANT_EVAL_DATASET, EVAL_DATASET } from './eval.dataset';
 import { PASSING_SCORE_THRESHOLD } from './eval.matrix';
 import { EvalScorer } from './eval.scorer';
 import { modelProfilesRegistry } from './model-profiles.registry';
 import type { EvalMetricKey, EvalTestCase, ModelEvalSummary, SingleTestResult } from './eval.types';
 
 export class EvalRunner {
+  /**
+   * Menjalankan evaluasi khusus persona AI Admin Toko (Customer-Facing).
+   */
+  static evaluateAdminPersona(
+    modelId: string,
+    options?: { onProgress?: (current: number, total: number, testName: string) => void }
+  ): Promise<ModelEvalSummary> {
+    return this.evaluateModel(modelId, ADMIN_EVAL_DATASET, options);
+  }
+
+  /**
+   * Menjalankan evaluasi khusus persona AI Asisten Pemilik (Owner-Facing).
+   */
+  static evaluateAssistantPersona(
+    modelId: string,
+    options?: { onProgress?: (current: number, total: number, testName: string) => void }
+  ): Promise<ModelEvalSummary> {
+    return this.evaluateModel(modelId, ASSISTANT_EVAL_DATASET, options);
+  }
+
   /**
    * Menjalankan evaluasi terstandarisasi untuk satu model tertentu terhadap dataset evaluasi.
    */
