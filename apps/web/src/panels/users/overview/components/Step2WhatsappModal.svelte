@@ -53,6 +53,10 @@
 
 				if (res.status === 'open') {
 					errorMessage = '';
+				} else if (res.status === 'conflict') {
+					errorMessage =
+						res.conflictReason ||
+						'Nomor WhatsApp ini sudah terdaftar pada akun bisnis lain di Meseid.';
 				} else if (res.status === 'qr_ready' && res.qr) {
 					if (res.qr !== lastRawQr) {
 						lastRawQr = res.qr;
@@ -168,13 +172,15 @@
 
 			<!-- Live Connection & QR Code Container -->
 			<div
-				class="w-full rounded-2xl border-2 border-[#5FD068] bg-white p-6 flex flex-col items-center justify-center my-2 shadow-xs min-h-[280px]"
+				class="w-full rounded-2xl border-2 border-[#5FD068] bg-white p-4 sm:p-5 flex flex-col items-center my-2 shadow-xs shrink-0 overflow-hidden"
 			>
 				{#if connectionStatus === 'open'}
 					<!-- Connected Status Display -->
 					<div class="flex flex-col items-center text-center space-y-2 py-4 animate-in fade-in duration-300">
-						<div class="w-16 h-16 rounded-full bg-emerald-100 border-2 border-emerald-500 text-emerald-600 flex items-center justify-center text-3xl font-bold shadow-xs">
-							&#10003;
+						<div class="w-14 h-14 rounded-full bg-emerald-100 border-2 border-emerald-500 text-emerald-600 flex items-center justify-center shadow-xs">
+							<svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+								<polyline points="20 6 9 17 4 12" />
+							</svg>
 						</div>
 						<div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
 							<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -187,7 +193,7 @@
 							Your store bot is online. It is ready to send invoices, notifications, and answer customer chats.
 						</p>
 
-						<div class="pt-3">
+						<div class="pt-2">
 							<button
 								type="button"
 								onclick={handleResetSession}
@@ -201,19 +207,19 @@
 
 				{:else if connectionStatus === 'qr_ready' && qrDataUrl}
 					<!-- Live QR Code Display -->
-					<div class="flex flex-col items-center text-center space-y-2 animate-in fade-in duration-200">
+					<div class="flex flex-col items-center text-center space-y-2.5">
 						<div class="p-2 bg-white rounded-xl shadow-xs border border-neutral-100">
 							<img
 								src={qrDataUrl}
 								alt="Live WhatsApp QR Code"
-								class="w-52 h-52 sm:w-56 sm:h-56 object-contain"
+								class="w-44 h-44 sm:w-48 sm:h-48 object-contain"
 							/>
 						</div>
 						<div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
 							<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
 							<span>Ready for scan</span>
 						</div>
-						<p class="text-xs text-neutral-500">
+						<p class="text-xs text-neutral-500 leading-snug max-w-[280px]">
 							Point your WhatsApp camera at this QR code. Refreshes automatically.
 						</p>
 					</div>
@@ -228,6 +234,31 @@
 						<p class="text-xs text-neutral-400 max-w-[280px]">
 							Establishing secure connection with WhatsApp servers. Please wait a moment.
 						</p>
+					</div>
+
+				{:else if connectionStatus === 'conflict'}
+					<!-- Number Conflict State -->
+					<div class="flex flex-col items-center text-center space-y-3 py-6 animate-in fade-in duration-200">
+						<div class="w-12 h-12 rounded-full bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center text-2xl font-bold shadow-xs">
+							⚠️
+						</div>
+						<div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">
+							<span>Nomor Sudah Terdaftar</span>
+						</div>
+						<p class="text-xs text-neutral-800 font-medium max-w-[320px]">
+							{errorMessage || 'Nomor WhatsApp ini sudah terdaftar pada akun bisnis lain.'}
+						</p>
+						<p class="text-[11px] text-neutral-500 max-w-[320px] leading-relaxed">
+							Notifikasi keamanan telah dikirimkan ke nomor WhatsApp tersebut. Jika ini benar nomor Anda, silakan putuskan sambungan dari akun lama terlebih dahulu.
+						</p>
+						<button
+							type="button"
+							onclick={handleResetSession}
+							disabled={isResetting}
+							class="px-4 py-2 rounded-xl bg-[#5FD068] hover:bg-[#4eb856] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+						>
+							{isResetting ? 'Memulai Ulang...' : '🔄 Coba Scan Ulang (Nomor Lain)'}
+						</button>
 					</div>
 
 				{:else}
@@ -281,20 +312,7 @@
 				>
 					<div class="flex items-center justify-between pb-1.5 border-b border-red-200/60">
 						<div class="flex items-center gap-1.5 font-semibold text-[#DC2626]">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="w-4 h-4 shrink-0"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-							>
-								<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-								<line x1="12" y1="9" x2="12" y2="13" />
-								<line x1="12" y1="17" x2="12.01" y2="17" />
-							</svg>
+							<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
 							<span>Unofficial Integration Risks</span>
 						</div>
 						<button
@@ -311,22 +329,13 @@
 					</p>
 
 					<div class="space-y-2 text-neutral-700">
-						<p>
-							<strong class="text-neutral-900 font-medium">• Dedicated Bot Account:</strong>
-							Use a separate business line to prevent your personal number from disruption.
-						</p>
-						<p>
-							<strong class="text-neutral-900 font-medium">• Anti-Spam Policy:</strong>
-							Never use the bot for unsolicited broadcast messages or spam. Only answer customers who start conversations.
-						</p>
+						<p><strong class="text-neutral-900 font-medium">• Dedicated Bot Account:</strong> Use a separate business line to prevent your personal number from disruption.</p>
+						<p><strong class="text-neutral-900 font-medium">• Anti-Spam Policy:</strong> Never use the bot for unsolicited broadcast messages or spam. Only answer customers who start conversations.</p>
 					</div>
 
 					<div class="p-2.5 rounded-xl bg-white border border-red-200/60 text-neutral-800 text-[12px] flex items-start gap-2 shadow-2xs">
 						<span class="font-bold text-neutral-600">[Note]</span>
-						<p>
-							<strong class="text-neutral-900 font-medium">Alternative:</strong>
-							Telegram bots operate through official Telegram APIs without third-party integration constraints.
-						</p>
+						<p><strong class="text-neutral-900 font-medium">Alternative:</strong> Telegram bots operate through official Telegram APIs without third-party integration constraints.</p>
 					</div>
 				</div>
 			{/if}
@@ -337,19 +346,27 @@
 			</p>
 
 			<!-- Risk Confirmation Banner -->
-			<div
-				class="w-full bg-[#EF4444] hover:bg-[#dc2626] text-white rounded-xl px-4 py-3 text-xs sm:text-[13px] font-intel flex items-center justify-between gap-3 shadow-xs my-2 cursor-pointer transition-colors"
+			<button
+				type="button"
+				class="w-full bg-[#EF4444] hover:bg-[#dc2626] text-white rounded-xl px-4 py-3 text-xs sm:text-[13px] font-intel flex items-center justify-between gap-3 shadow-xs my-2 cursor-pointer transition-colors text-left shrink-0"
 				onclick={() => (riskAccepted = !riskAccepted)}
 				onkeydown={(e) => e.key === ' ' && (riskAccepted = !riskAccepted)}
-				tabindex="0"
 				role="checkbox"
 				aria-checked={riskAccepted}
 			>
-				<span class="leading-snug font-medium">"Understand the risks of unofficial API integration before scanning."</span>
-				<span class="w-5 h-5 rounded-sm border border-white flex items-center justify-center bg-white/20 text-white font-bold text-sm select-none">
-					{riskAccepted ? '&#10003;' : ''}
+				<span class="leading-snug font-medium flex-1">
+					Understand the risks of unofficial API integration before scanning.
 				</span>
-			</div>
+				<span
+					class="w-5 h-5 rounded-md border-2 border-white flex items-center justify-center transition-colors shrink-0 select-none {riskAccepted ? 'bg-white text-[#EF4444]' : 'bg-white/10 text-transparent'}"
+				>
+					{#if riskAccepted}
+						<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+							<polyline points="20 6 9 17 4 12" />
+						</svg>
+					{/if}
+				</span>
+			</button>
 
 			<!-- Bottom CTA -->
 			<div class="w-full flex flex-col items-center justify-center pt-3 pb-2">

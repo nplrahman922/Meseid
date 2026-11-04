@@ -76,6 +76,47 @@ export class ApiClient {
       };
     }
   }
+
+  /**
+   * Memeriksa apakah nomor WhatsApp sudah terikat ke owner lain di database API.
+   */
+  async checkChannelConflict(
+    phoneNumber: string,
+    sessionId?: string,
+    ownerId?: string
+  ): Promise<{ isConflict: boolean; existingOwnerId?: string; businessName?: string; reason?: string }> {
+    const targetUrl = `${this.apiUrl}/api/internal/channel/check-conflict`;
+    try {
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-secret': this.internalSecret,
+        },
+        body: JSON.stringify({
+          channel: 'whatsapp',
+          external_account_id: phoneNumber,
+          session_id: sessionId,
+          owner_id: ownerId,
+        }),
+      });
+
+      if (!response.ok) {
+        return { isConflict: false };
+      }
+
+      const data = (await response.json()) as any;
+      return {
+        isConflict: Boolean(data.isConflict),
+        existingOwnerId: data.existingOwnerId,
+        businessName: data.businessName,
+        reason: data.reason,
+      };
+    } catch (err: any) {
+      apiClientLogger.warn(`Gagal memeriksa konflik channel di API: ${err.message}`);
+      return { isConflict: false };
+    }
+  }
 }
 
 export const apiClient = new ApiClient();

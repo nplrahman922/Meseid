@@ -60,9 +60,9 @@ services:
       - --appendonly
       - "yes"
       - --maxmemory
-      - 128mb
+      - 256mb
       - --maxmemory-policy
-      - allkeys-lru
+      - noeviction
     volumes:
       - redisdata:/data
     # Dibuka ke 127.0.0.1 agar development dari host/laptop tetap bisa terhubung
@@ -74,7 +74,7 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
-    mem_limit: 128m
+    mem_limit: 256m
     restart: unless-stopped
     logging: *default-logging
 

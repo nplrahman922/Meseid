@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
 	import UserSidebar from '../../components/UserSidebar.svelte';
 	import UserNavbar from '../../components/UserNavbar.svelte';
 	import EmptyState501 from '../../components/EmptyState501.svelte';
+	import BotUnconfiguredBanner from './components/BotUnconfiguredBanner.svelte';
 	import BerandaRoot from './beranda/BerandaRoot.svelte';
 	import KanalRoot from './kanal/KanalRoot.svelte';
 	import KnowledgeBaseRoot from './knowledge-base/KnowledgeBaseRoot.svelte';
@@ -33,15 +35,47 @@
 	}: Props = $props();
 
 	let isAuthorized = $state(false);
+	let isBotUnconfigured = $state(false);
+	let isBannerDismissed = $state(false);
 	// Option 1: Navbar clock consistently reflects user's local device/browser timezone (e.g. WITA)
 	let currentDateTime = $state(formatUserDateTime());
 	let clockInterval: ReturnType<typeof setInterval> | undefined;
+
+	async function checkBotConfigStatus() {
+		try {
+			const res = await fetch('/api/owner/onboarding-status', {
+				method: 'GET',
+				headers: { Accept: 'application/json' },
+				credentials: 'include'
+			});
+			if (res.ok) {
+				const json = await res.json();
+				const onboarding = json?.data?.onboarding;
+				if (onboarding) {
+					const hasCompleted = Boolean(onboarding.onboardingCompleted);
+					const channels = onboarding.connectedChannels || [];
+					// Bot dinyatakan belum diatur jika belum onboarding completed ATAU belum ada kanal bot terhubung
+					isBotUnconfigured = !hasCompleted || channels.length === 0;
+					return;
+				}
+			}
+		} catch (e) {
+			console.warn('Gagal memuat status konfigurasi bot:', e);
+		}
+
+		// Fallback dari authState
+		if ($authState.owner) {
+			isBotUnconfigured = !$authState.owner.onboarding_completed;
+		}
+	}
 
 	onMount(async () => {
 		// 1. Guard route: redirect if not logged in as owner
 		const ok = await requireAuth('owner');
 		if (ok) {
 			isAuthorized = true;
+			// Cek status bot jika authorized
+			await checkBotConfigStatus();
 		}
 
 		// 2. Synchronize activeTab from URL search params if present
@@ -165,6 +199,17 @@
 
 			<!-- Canvas / Page Content -->
 			<main class="flex-1 p-4 sm:p-6 md:p-8 bg-[#FAFAFA] overflow-y-auto">
+				<!-- Warning Banner: Bot Belum Dikonfigurasi -->
+				{#if isBotUnconfigured && !isBannerDismissed}
+					<div class="w-full max-w-5xl mx-auto mb-6 animate-in fade-in duration-200">
+						<BotUnconfiguredBanner
+							onConfigureBot={() => goto('/overview')}
+							onNavigateKanal={() => handleSelectTab('kanal')}
+							onDismiss={() => (isBannerDismissed = true)}
+						/>
+					</div>
+				{/if}
+
 				{#if activeTab === 'beranda'}
 					<BerandaRoot
 						businessName={computedBusinessName}

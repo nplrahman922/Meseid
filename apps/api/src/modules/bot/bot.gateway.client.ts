@@ -5,9 +5,10 @@ const gatewayLogger = createModuleLogger("bot-gateway-client");
 
 export interface WhatsappStatusResult {
   sessionId: string;
-  status: "connecting" | "open" | "close" | "qr_ready" | "logged_out";
+  status: "connecting" | "open" | "close" | "qr_ready" | "logged_out" | "conflict";
   qr: string | null;
   phoneNumber: string | null;
+  conflictReason?: string | null;
 }
 
 export interface TelegramVerifyResult {
@@ -46,6 +47,7 @@ export async function getWhatsappStatus(sessionId: string = "default"): Promise<
       status: data.status || "connecting",
       qr: data.qr || null,
       phoneNumber: data.phoneNumber || null,
+      conflictReason: data.conflictReason || null,
     };
   } catch (err: any) {
     gatewayLogger.warn(`Failed to connect to Bot Gateway: ${err.message}`);

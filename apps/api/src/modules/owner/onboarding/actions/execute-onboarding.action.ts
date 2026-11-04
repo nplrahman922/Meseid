@@ -33,10 +33,26 @@ export async function executeOnboardingTransaction(
     RETURNING id, business_name, business_type;
   `;
 
-  // 2. Upsert connected bots if any
+  // 2. Upsert connected bots if any (dengan validasi anti-rebut kepemilikan antar owner)
   if (input.connectedBots && input.connectedBots.length > 0) {
     for (const bot of input.connectedBots) {
       if (bot.externalAccountId) {
+        const cleanAccountId = bot.externalAccountId.trim();
+
+        // Verifikasi apakah akun channel sudah terikat ke owner lain
+        const existingConnections = await tx<{ owner_id: string }[]>`
+          SELECT owner_id FROM channel_connections
+          WHERE channel = ${bot.channel}
+            AND external_account_id = ${cleanAccountId}
+          LIMIT 1;
+        `;
+
+        if (existingConnections.length > 0 && existingConnections[0].owner_id !== ownerId) {
+          throw new Error(
+            `Akun / Nomor ${bot.channel} '${cleanAccountId}' sudah terdaftar pada akun bisnis lain. Silakan putuskan koneksi dari akun sebelumnya terlebih dahulu.`
+          );
+        }
+
         await tx`
           INSERT INTO channel_connections (
             owner_id,
@@ -48,15 +64,15 @@ export async function executeOnboardingTransaction(
           VALUES (
             ${ownerId}::uuid,
             ${bot.channel},
-            ${bot.externalAccountId.trim()},
+            ${cleanAccountId},
             'connected',
             ${bot.sessionRef || null}
           )
           ON CONFLICT (channel, external_account_id) DO UPDATE
-          SET owner_id = ${ownerId}::uuid,
-              status = 'connected',
+          SET status = 'connected',
               session_ref = COALESCE(${bot.sessionRef || null}, channel_connections.session_ref),
-              updated_at = now();
+              updated_at = now()
+          WHERE channel_connections.owner_id = ${ownerId}::uuid;
         `;
       }
     }

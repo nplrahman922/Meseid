@@ -139,7 +139,9 @@
 						<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
 						<span class="font-medium">Connected successfully as <strong class="text-emerald-950">@{verifiedUsername}</strong></span>
 					</div>
-					<span class="text-emerald-600 font-bold text-sm">&#10003;</span>
+					<svg class="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<polyline points="20 6 9 17 4 12" />
+					</svg>
 				</div>
 			{:else if verifyError}
 				<div class="w-full my-2.5 p-3 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2 animate-in fade-in duration-200">

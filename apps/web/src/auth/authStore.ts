@@ -158,10 +158,13 @@ export async function requireAuth(expectedRole?: 'owner' | 'admin'): Promise<boo
 		return false;
 	}
 
-	// Owner guard: if onboarding is not completed, route to /overview
+	// Owner guard: if onboarding is not completed and overview hasn't been skipped/seen, route to /overview
 	if (state.user.role === 'owner' && !state.owner?.onboarding_completed) {
-		window.location.replace('/overview');
-		return false;
+		const isOverviewSkipped = typeof window !== 'undefined' && localStorage.getItem('meseid_overview_completed') === 'true';
+		if (!isOverviewSkipped) {
+			window.location.replace('/overview');
+			return false;
+		}
 	}
 
 	return true;
@@ -180,7 +183,8 @@ export async function redirectIfAuthenticated(): Promise<boolean> {
 			window.location.replace('/dashboard-admin');
 		} else {
 			const isCompleted = state.owner?.onboarding_completed ?? false;
-			if (!isCompleted) {
+			const isOverviewSkipped = typeof window !== 'undefined' && localStorage.getItem('meseid_overview_completed') === 'true';
+			if (!isCompleted && !isOverviewSkipped) {
 				window.location.replace('/overview');
 			} else {
 				window.location.replace('/dashboard');

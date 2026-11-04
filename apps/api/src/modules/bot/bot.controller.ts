@@ -50,9 +50,13 @@ export async function resetWhatsappSessionController({
  */
 export async function verifyTelegramTokenController({
   body,
+  owner,
+  runOwnerTx,
   set,
 }: {
   body: { token: string };
+  owner: { id: string };
+  runOwnerTx: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
   set: { status?: number | string };
 }) {
   if (!body.token || body.token.trim().length === 0) {
@@ -67,6 +71,33 @@ export async function verifyTelegramTokenController({
       error: "INVALID_TELEGRAM_TOKEN",
       message: result.error || "Token bot Telegram tidak valid.",
     };
+  }
+
+  // Ikat botId ke owner di channel_connections agar /otp dapat langsung mengidentifikasi pemilik
+  if (result.botId && owner?.id) {
+    await runOwnerTx(async (tx) => {
+      await tx`
+        INSERT INTO channel_connections (
+          owner_id,
+          channel,
+          external_account_id,
+          status,
+          session_ref
+        )
+        VALUES (
+          ${owner.id}::uuid,
+          'telegram',
+          ${result.botId},
+          'connected',
+          ${`session_tg_${result.botId}`}
+        )
+        ON CONFLICT (channel, external_account_id)
+        DO UPDATE SET
+          owner_id = ${owner.id}::uuid,
+          status = 'connected',
+          updated_at = now();
+      `;
+    });
   }
 
   return successResponse(result, "Token bot Telegram berhasil diverifikasi.");

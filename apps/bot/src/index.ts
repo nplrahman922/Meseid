@@ -135,11 +135,13 @@ app.get('/whatsapp/qr/:sessionId', (c) => {
       status: session.status,
       qr: qr || null,
       phoneNumber: session.phoneNumber || null,
+      conflictReason: session.conflictReason || null,
     });
   }
 
   // Tampilan visual HTML ramah pengguna untuk di-scan langsung dari layar HP / Desktop
   const isConnected = session.status === 'open';
+  const isConflict = session.status === 'conflict';
   const qrUrl = qr
     ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qr)}`
     : '';
@@ -150,7 +152,7 @@ app.get('/whatsapp/qr/:sessionId', (c) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scan QR WhatsApp - Meseid Bot</title>
-  ${!isConnected ? '<meta http-equiv="refresh" content="8">' : ''}
+  ${!isConnected && !isConflict ? '<meta http-equiv="refresh" content="8">' : ''}
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -210,6 +212,28 @@ app.get('/whatsapp/qr/:sessionId', (c) => {
         <p style="margin-top: 0.5rem;">Bot sudah siap mengirim dan menerima pesan transaksi.</p>
       </div>
       `
+        : isConflict
+        ? `
+      <div style="margin: 2rem 0;">
+        <span class="badge" style="background: #854d0e; color: #fde047;">⚠️ Konflik Nomor WhatsApp</span>
+        <h3 style="margin-top: 1rem; color: #f87171;">Nomor Telah Terdaftar</h3>
+        <p style="margin-top: 0.5rem; font-size: 0.9rem; color: #cbd5e1;">${session.conflictReason || 'Nomor WhatsApp ini sudah aktif pada akun bisnis lain.'}</p>
+        <p style="margin-top: 0.5rem; font-size: 0.8rem; color: #94a3b8;">Notifikasi keamanan telah dikirimkan ke nomor WhatsApp tersebut. Jika ini adalah nomor Anda, silakan putuskan sambungan dari akun lama terlebih dahulu.</p>
+        <button onclick="resetSession()" style="margin-top: 1.5rem; background: #3b82f6; color: white; border: none; padding: 0.6rem 1.25rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer;">
+          🔄 Coba Scan Ulang
+        </button>
+      </div>
+      <script>
+        function resetSession() {
+          fetch('/whatsapp/session/reset/${sessionId}', {
+            method: 'POST',
+            headers: { 'x-internal-secret': '${process.env.INTERNAL_API_SECRET || ''}' }
+          })
+            .then(() => window.location.reload())
+            .catch(() => window.location.reload());
+        }
+      </script>
+      `
         : qrUrl
         ? `
       <span class="badge badge-waiting">🟡 Menunggu Scan QR</span>
@@ -246,6 +270,7 @@ app.get('/whatsapp/status/:sessionId', (c) => {
     sessionId,
     status: session.status,
     phoneNumber: session.phoneNumber || null,
+    conflictReason: session.conflictReason || null,
   });
 });
 

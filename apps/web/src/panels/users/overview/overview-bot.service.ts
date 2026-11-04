@@ -78,9 +78,10 @@ export async function verifyOtpCode(
  */
 export async function fetchWhatsappStatus(sessionId: string = 'default'): Promise<{
 	success: boolean;
-	status: 'connecting' | 'open' | 'close' | 'qr_ready' | 'logged_out';
+	status: 'connecting' | 'open' | 'close' | 'qr_ready' | 'logged_out' | 'conflict';
 	qr: string | null;
 	phoneNumber: string | null;
+	conflictReason?: string | null;
 	error?: string;
 }> {
 	try {
@@ -105,7 +106,8 @@ export async function fetchWhatsappStatus(sessionId: string = 'default'): Promis
 			success: true,
 			status: json.whatsapp?.status || 'close',
 			qr: json.whatsapp?.qr || null,
-			phoneNumber: json.whatsapp?.phoneNumber || null
+			phoneNumber: json.whatsapp?.phoneNumber || null,
+			conflictReason: json.whatsapp?.conflictReason || null
 		};
 	} catch (err: any) {
 		return {

@@ -135,6 +135,11 @@
 		subStep3 = 'choice';
 	}
 
+	function handleSkip() {
+		markOverviewSeen();
+		goto('/dashboard');
+	}
+
 	async function handleFinish() {
 		try {
 			await submitOnboarding(draftData);
@@ -153,7 +158,7 @@
 {#if isReady}
 	<div class="min-h-screen w-full flex flex-col justify-between bg-white text-[#111111] font-intel overflow-x-hidden">
 		<!-- Top Navigation Header -->
-		<OverviewNavbar {currentStep} onReset={handleDevReset} />
+		<OverviewNavbar {currentStep} onReset={handleDevReset} onSkip={handleSkip} />
 
 		<!-- Main Step Container -->
 		<main class="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 w-full max-w-4xl mx-auto py-4 sm:py-8 overflow-hidden">

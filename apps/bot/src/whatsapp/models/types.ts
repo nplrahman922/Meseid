@@ -61,9 +61,10 @@ export interface WhatsAppSessionConfig {
 
 export interface WhatsAppSessionStatus {
   sessionId: string;
-  status: 'connecting' | 'open' | 'close' | 'qr_ready' | 'logged_out';
+  status: 'connecting' | 'open' | 'close' | 'qr_ready' | 'logged_out' | 'conflict';
   storage?: 'redis' | 'file';
   phoneNumber?: string;
   qr?: string;
   lastSeen?: number;
+  conflictReason?: string;
 }
