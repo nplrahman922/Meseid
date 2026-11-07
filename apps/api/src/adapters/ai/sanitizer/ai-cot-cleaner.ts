@@ -32,6 +32,35 @@ export class AiCotCleaner {
     // 1. Hapus tag <think>...</think> jika ada
     text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
+    // 1b. Bersihkan prompt echo pembuka yang sering dikutip mentah oleh model
+    text = text.replace(/^["'“”]?\s*Halo Tuan Muda!['",\s]+Halo Kak!['")\s]+/gi, 'Halo Tuan Muda!\n\n').trim();
+
+    // 1c. Hapus baris-baris monolog refleksi/analisis bahasa Inggris (meta-reasoning)
+    const lines = text.split('\n');
+    const filteredLines = lines.filter((line) => {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) return true;
+      return !/^(?:[•\-*]|\d+\.)?\s*(?:There's also|The rules say|Let me re-read|Wait, actually|Wait, the prompt|Actually, looking|Looking at the|The API key is explicitly|This looks like a test|My draft|I should probably|I need to ensure|Draft:|Here's a thinking|One thing:|Check constraints:|Then:|And:|Instruksi Revisi|Identify the Core Task|Analyze User Input|Determine Response Strategy|Check against rules|Draft Response|Final check|It seems)\b/i.test(trimmedLine) &&
+        !/\b(?:in the knowledge base: "API Key|looking at the prompt structure|test case or a formatted|actual user message in the chat interface|Identify the Core Task|Analyze User Input)\b/i.test(trimmedLine);
+    });
+    text = filteredLines.join('\n').trim();
+
+    // 1d. Hapus blok proses berpikir/analisis di awal output model reasoning (Nemotron)
+    if (/^(?:Here'?s (?:a|the) thinking process|1\.\s*\*?Analyze|1\.\s*\*?Identify|Analyzing|Thinking Process)/i.test(text)) {
+      const naturalGreetingIdx = text.search(/\b(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Hai|Isi knowledgebase|Meseid|Untuk|Toko|Produk|Layanan|Ya|Tidak|Hello|Hi|Dear|Sure|Welcome|Certainly|Gue|Aku|こんにちは|はい|ありがとうございます)\b/i);
+      if (naturalGreetingIdx > 0) {
+        text = text.slice(naturalGreetingIdx).trim();
+      } else {
+        const parts = text.split(/\n\s*\n/);
+        if (parts.length > 1) {
+          const lastPart = parts[parts.length - 1].trim();
+          if (lastPart.length > 10 && !/^\d+\./.test(lastPart)) {
+            text = lastPart;
+          }
+        }
+      }
+    }
+
     // 2. Jika teks memuat penanda eksplisit akhir CoT: "Let me compose the reply: [TEKS]"
     const composeMarker = /(?:Let me compose the reply|Here is the reply|Draft reply|Balasan:)\s*:?\s*["“]?/i;
     const match = text.match(composeMarker);
@@ -66,10 +95,10 @@ export class AiCotCleaner {
     }
 
     // 5. Jika teks masih diawali kalimat meta bahasa Inggris murni
-    if (/^(?:The user|He wants|She wants|I need to|Write a new reply|The improvement direction|So the auditor|This is contradictory|User asks)\b/i.test(text)) {
-      const indonesianIntro = text.search(/\b(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Hai)\b/i);
-      if (indonesianIntro > 0) {
-        text = text.slice(indonesianIntro).trim();
+    if (/^(?:The user|He wants|She wants|Write a new reply|The improvement direction|So the auditor|This is contradictory|User asks)\b/i.test(text)) {
+      const naturalGreetingIntro = text.search(/\b(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Hai|Hello|Hi|Dear|Sure|Welcome|Certainly|Gue|Aku|こんにちは|はい|ありがとうございます)\b/i);
+      if (naturalGreetingIntro > 0) {
+        text = text.slice(naturalGreetingIntro).trim();
       }
     }
 
@@ -83,8 +112,8 @@ export class AiCotCleaner {
     if (!rawText || typeof rawText !== 'string') return false;
     const trimmed = rawText.trim();
     if (
-      /^(?:The user\b|He wants\b|She wants\b|I need to\b|Let me\b|Write a new reply\b|The improvement direction\b|So the auditor\b|This is contradictory\b|In my previous\b|Format requirements:\b|Here's a thinking process:|User asks\b)/i.test(trimmed) ||
-      /\b(?:The user is asking|Let me review|Let me compose the reply:|In my previous response)\b/i.test(trimmed)
+      /^(?:The user\b|He wants\b|She wants\b|Write a new reply\b|The improvement direction\b|So the auditor\b|This is contradictory\b|In my previous\b|Format requirements:\b|Here's a thinking process:|User asks\b|Wait, actually\b|1\.\s*\*?Analyze|Let me (?:think|review|analyze|examine|check the prompt|compose|re-read|see what|balance|ensure|craft|determine)\b|I need to (?:respond|answer|provide|balance|ensure|check|analyze|follow|craft)\b)/i.test(trimmed) ||
+      /\b(?:The user is asking|Let me review|Let me compose the reply:|In my previous response|There's also a "RAHASIA"|looking at the prompt structure|test case or a formatted|Identify the Core Task|Analyze User Input|Determine Response Strategy)\b/i.test(trimmed)
     ) {
       return true;
     }

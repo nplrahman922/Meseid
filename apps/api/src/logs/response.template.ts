@@ -40,9 +40,9 @@ export function successResponse<T extends Record<string, any>>(
   message?: string
 ): StandardSuccessResponse<T> {
   const res: StandardSuccessResponse<T> = {
-    status: "ok",
-    ...(message ? { message } : {}),
     ...(payload || ({} as T)),
+    ...(message ? { message } : {}),
+    status: "ok",
   };
   return res;
 }

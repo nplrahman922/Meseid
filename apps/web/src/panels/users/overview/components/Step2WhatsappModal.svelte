@@ -21,7 +21,7 @@
 	let showRiskDetails = $state(false);
 
 	// Real-time Baileys connection state
-	let connectionStatus = $state<'connecting' | 'qr_ready' | 'open' | 'close' | 'logged_out'>('connecting');
+	let connectionStatus = $state<'connecting' | 'qr_ready' | 'open' | 'close' | 'logged_out' | 'conflict'>('connecting');
 	let connectedPhone = $state<string | null>(null);
 	let qrDataUrl = $state<string>('');
 	let lastRawQr = $state<string>('');
@@ -46,7 +46,7 @@
 
 	async function checkLiveStatus() {
 		try {
-			const res = await fetchWhatsappStatus('default');
+			const res = await fetchWhatsappStatus();
 			if (res.success) {
 				connectionStatus = res.status;
 				connectedPhone = res.phoneNumber;
@@ -106,7 +106,7 @@
 		errorMessage = '';
 
 		try {
-			const res = await resetWhatsappSession('default');
+			const res = await resetWhatsappSession();
 			if (!res.success) {
 				errorMessage = res.error || 'Failed to reset WhatsApp session.';
 			}

@@ -7,6 +7,9 @@ import {
   resetWhatsappSessionController,
   verifyTelegramTokenController,
   verifyTelegramOtpController,
+  disconnectWhatsappController,
+  disconnectTelegramController,
+  testTelegramConnectionController,
 } from "../modules/bot";
 
 export const botRoutes = new Elysia()
@@ -27,8 +30,9 @@ export const botRoutes = new Elysia()
       })
     ),
   })
+  .post("/whatsapp/disconnect", disconnectWhatsappController)
 
-  // Telegram Gateway verification route
+  // Telegram Gateway verification & testing routes
   .post(
     "/telegram/verify",
     verifyTelegramTokenController,
@@ -38,6 +42,8 @@ export const botRoutes = new Elysia()
       }),
     }
   )
+  .post("/telegram/disconnect", disconnectTelegramController)
+  .post("/telegram/test", testTelegramConnectionController)
 
   // Telegram Inverted OTP verification route
   .post(

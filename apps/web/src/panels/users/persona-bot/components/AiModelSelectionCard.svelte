@@ -21,24 +21,40 @@
 		propIsPro ?? ($authState.subscription?.plan_name?.toLowerCase() === 'pro')
 	);
 
+	// Tab aktif: 'assistant' (Asisten Pemilik) atau 'admin' (Admin Toko Publik)
+	let activeTab = $state<'assistant' | 'admin'>('assistant');
+
+	// Model yang dipilih untuk masing-masing bot
+	let assistantModelId = $state<string>('nemotron-free');
+	let adminModelId = $state<string>('nemotron-free');
+
+	// Helper menentukan apakah model dapat diakses oleh user saat ini
+	function isModelAvailable(model: AiModelItem): boolean {
+		return isUserPro || model.tier === 'free' || Boolean(model.isAccessible);
+	}
+
 	let models = $state<AiModelItem[]>(DEFAULT_TESTED_MODELS);
 	let isSaving = $state(false);
 	let toastMessage = $state('');
 	let toastType = $state<'success' | 'warning' | 'error'>('success');
-	let currentPage = $state(1);
-	const pageSize = 5;
 
-	let totalPages = $derived(Math.ceil(models.length / pageSize));
-	let paginatedModels = $derived(
-		models
-			.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-			.map((m) => ({
-				...m,
-				isAccessible: isUserPro ? true : m.tier === 'free'
-			}))
+	// Nama model terpilih
+	let assistantModelName = $derived(
+		models.find(
+			(m) =>
+				m.preset_code === assistantModelId ||
+				m.model_id === assistantModelId ||
+				m.id === assistantModelId
+		)?.name || 'Nemotron 3.5 Free'
 	);
-	let selectedCount = $derived(models.filter((m) => m.isSelected).length);
-	let activeModelName = $derived(models.find((m) => m.isSelected)?.name || 'Belum dipilih');
+	let adminModelName = $derived(
+		models.find(
+			(m) =>
+				m.preset_code === adminModelId ||
+				m.model_id === adminModelId ||
+				m.id === adminModelId
+		)?.name || 'Nemotron 3.5 Free'
+	);
 
 	function showToast(msg: string, type: 'success' | 'warning' | 'error' = 'success') {
 		toastMessage = msg;
@@ -56,51 +72,75 @@
 			});
 			if (res.ok) {
 				const json = await res.json();
-				if (json.data?.models && Array.isArray(json.data.models)) {
-					const apiModels: AiModelItem[] = json.data.models.map((m: any) => ({
-						id: m.id || m.model_id,
+				const rawModels = json.models || json.data?.models;
+				if (rawModels && Array.isArray(rawModels)) {
+					const apiModels: AiModelItem[] = rawModels.map((m: any) => ({
+						id: m.id || m.preset_code || m.model_id,
+						preset_code: m.preset_code,
 						model_id: m.model_id,
-						name: m.name || m.model_id,
+						name: m.display_name || m.name || m.model_id,
+						display_name: m.display_name || m.name,
+						description: m.description,
 						provider: m.provider,
 						jenis: m.jenis || (m.tier === 'free' ? 'Gratis' : 'Berbayar'),
 						tier: m.tier || 'free',
 						tipe: m.tipe || 'LLM',
-						score: m.score ?? 90,
+						score: m.score ?? 95,
 						badge: m.badge,
-						isAccessible: m.is_accessible,
-						isSelected: m.is_current
+						supports_vision: Boolean(m.supports_vision),
+						supports_audio: Boolean(m.supports_audio),
+						supports_web_search: Boolean(m.supports_web_search),
+						supports_reasoning: Boolean(m.supports_reasoning),
+						isAccessible: Boolean(m.is_accessible ?? (isUserPro || m.tier === 'free')),
+						isSelected: Boolean(m.is_current)
 					}));
 					if (apiModels.length > 0) {
 						models = apiModels;
 					}
 				}
+
+				// Ambil model aktif untuk masing-masing bot
+				const activeAssistant = json.current_assistant_model_id || json.data?.current_assistant_model_id;
+				const activeAdmin = json.current_admin_model_id || json.data?.current_admin_model_id;
+
+				if (activeAssistant) assistantModelId = activeAssistant;
+				if (activeAdmin) adminModelId = activeAdmin;
 			}
 		} catch {
-			// Fallback ke DEFAULT_TESTED_MODELS
+			// Fallback ke default
 		}
 	}
 
 	async function handleSelectModel(model: AiModelItem) {
-		if (!model.isAccessible) {
+		if (!isModelAvailable(model)) {
 			showToast(
-				`🔒 Model "${model.name}" khusus Akun Pro. Akun Gratis hanya dapat mengakses model Gratis. Silakan upgrade di tab Langganan!`,
+				`🔒 Model "${model.name}" adalah fitur eksklusif Akun Pro. Silakan upgrade paket langganan Anda di tab Billing!`,
 				'warning'
 			);
 			return;
 		}
 
-		models = models.map((m) => ({
-			...m,
-			isSelected: m.model_id === model.model_id
-		}));
+		const targetIdentifier = model.preset_code || model.model_id;
+		const isAssistantTarget = activeTab === 'assistant';
+
+		if (isAssistantTarget) {
+			assistantModelId = targetIdentifier;
+		} else {
+			adminModelId = targetIdentifier;
+		}
+
 		isAutoSelect = false;
 
 		if (onSelectModel) {
-			onSelectModel(model.model_id);
+			onSelectModel(targetIdentifier);
 		}
 
 		try {
 			isSaving = true;
+			const payload = isAssistantTarget
+				? { assistant_model_id: targetIdentifier }
+				: { admin_model_id: targetIdentifier };
+
 			const res = await fetch('/api/owner/personalisasi', {
 				method: 'PUT',
 				headers: {
@@ -108,11 +148,12 @@
 					Accept: 'application/json'
 				},
 				credentials: 'include',
-				body: JSON.stringify({ selected_model_id: model.model_id })
+				body: JSON.stringify(payload)
 			});
 
 			if (res.ok) {
-				showToast(`✓ Model aktif: ${model.name} (${model.jenis})`, 'success');
+				const botLabel = isAssistantTarget ? 'AI Asisten Pemilik' : 'AI Admin Toko';
+				showToast(`✓ Model ${botLabel} berhasil diatur ke: ${model.name}`, 'success');
 			} else {
 				const errData = await res.json().catch(() => ({}));
 				showToast(errData.message || 'Gagal mengubah model bot.', 'error');
@@ -124,19 +165,14 @@
 		}
 	}
 
-	async function toggleAutoSelect() {
-		isAutoSelect = !isAutoSelect;
-		if (isAutoSelect) {
-			const targetModelId = isUserPro ? 'google/gemini-2.5-flash' : 'reflection/beam-free';
-			const target = models.find((m) => m.model_id === targetModelId) || models[0];
-			if (target && target.isAccessible) {
-				await handleSelectModel(target);
-				showToast(
-					`✓ Otomatis memilih model optimal: ${target.name} (${isUserPro ? 'Paket Pro' : 'Paket Gratis'})`,
-					'success'
-				);
-			}
-		}
+	function isCurrentSelected(model: AiModelItem): boolean {
+		const targetId = activeTab === 'assistant' ? assistantModelId : adminModelId;
+		if (!targetId) return false;
+		return (
+			model.preset_code === targetId ||
+			model.model_id === targetId ||
+			model.id === targetId
+		);
 	}
 
 	onMount(() => {
@@ -144,172 +180,171 @@
 	});
 </script>
 
-<div class="bg-white rounded-2xl border border-[#E5E7EB] p-5 sm:p-6 space-y-6 shadow-xs relative">
-	<!-- Card Title & Status Badge -->
-	<div class="flex items-center justify-between">
+<div class="bg-white rounded-2xl border border-[#E5E7EB] p-5 sm:p-6 space-y-5 shadow-xs relative">
+	<!-- Header -->
+	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 		<div>
 			<h2 class="text-base sm:text-lg font-intel font-medium text-[#111111]">
-				Pemilihan Model AI
+				Pilihan Mesin AI Bot Usaha
 			</h2>
 			<p class="text-xs text-[#6B7280] mt-0.5">
-				Pilih mesin kecerdasan buatan teruji untuk melayani pelanggan dan mencatat transaksi usaha Anda.
+				Atur model AI terpisah untuk asisten bisnis Anda dan layanan pelanggan toko.
 			</p>
 		</div>
-		<div class="hidden sm:flex items-center gap-2">
-			<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {isUserPro ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}">
-				{isUserPro ? '👑 Akun Pro (Semua Model)' : '🌱 Akun Gratis (Model Gratis)'}
+		<div class="flex items-center gap-2 self-start sm:self-auto">
+			<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium {isUserPro ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'bg-emerald-50 text-emerald-900 border border-emerald-300'}">
+				{#if isUserPro}
+					<svg class="w-3.5 h-3.5 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14v2H5v-2z"/></svg>
+					<span>Akun Pro (Bebas Pilih Kedua Bot)</span>
+				{:else}
+					<svg class="w-3.5 h-3.5 text-emerald-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+					<span>Akun Gratis (Model Gratis)</span>
+				{/if}
 			</span>
+			{#if isSaving}
+				<span class="text-xs text-[#0E6B2B] animate-pulse font-medium">Menyimpan...</span>
+			{/if}
 		</div>
 	</div>
 
-	<!-- Auto Select Toggle Box -->
-	<div class="p-4 rounded-xl border border-[#E5E7EB] flex items-center justify-between bg-white">
-		<div class="flex items-center gap-3">
+	<!-- Tab Switcher: Asisten vs Admin Toko -->
+	<div class="border-b border-gray-200">
+		<div class="flex gap-6">
 			<button
 				type="button"
-				aria-label="Toggle Pilih Bot secara Otomatis"
-				onclick={toggleAutoSelect}
-				class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out {isAutoSelect ? 'bg-[#0E6B2B]' : 'bg-[#D1D5DB]'}"
+				class="pb-2.5 text-xs sm:text-sm font-medium border-b-2 transition-colors cursor-pointer flex items-center gap-2 {activeTab === 'assistant' ? 'border-[#0E6B2B] text-[#0E6B2B] font-semibold' : 'border-transparent text-gray-500 hover:text-gray-900'}"
+				onclick={() => activeTab = 'assistant'}
 			>
-				<span
-					class="pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out mt-[3px] {isAutoSelect ? 'translate-x-4.5 ml-0' : 'translate-x-1'}"
-				></span>
+				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+				<span>Asisten Pemilik</span>
+				<span class="text-[10px] px-1.5 py-0.5 rounded font-normal {activeTab === 'assistant' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}">
+					{assistantModelName}
+				</span>
 			</button>
-			<div>
-				<div class="text-xs sm:text-sm font-intel font-medium text-[#111111]">
-					Pilih Bot secara Otomatis
-				</div>
-				<div class="text-[11px] font-intel {isAutoSelect ? 'text-[#0E6B2B]' : 'text-[#6B7280]'}">
-					{isAutoSelect ? 'Aktif (Memilih model terbaik sesuai paket Anda)' : 'Nonaktif (Pilih manual di bawah)'}
-				</div>
-			</div>
-		</div>
-
-		<div class="text-xs font-intel text-[#4B5563]">
-			Model saat ini: <strong class="text-[#111111]">{activeModelName}</strong>
+			<button
+				type="button"
+				class="pb-2.5 text-xs sm:text-sm font-medium border-b-2 transition-colors cursor-pointer flex items-center gap-2 {activeTab === 'admin' ? 'border-[#0E6B2B] text-[#0E6B2B] font-semibold' : 'border-transparent text-gray-500 hover:text-gray-900'}"
+				onclick={() => activeTab = 'admin'}
+			>
+				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+				<span>Admin Toko</span>
+				<span class="text-[10px] px-1.5 py-0.5 rounded font-normal {activeTab === 'admin' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}">
+					{adminModelName}
+				</span>
+			</button>
 		</div>
 	</div>
 
-	<!-- AI Models Table Container -->
-	<div class="rounded-xl border border-[#E5E7EB] overflow-hidden bg-white">
-		<div class="px-4 py-3 border-b border-[#E5E7EB] flex items-center justify-between bg-[#FAFAFA]">
-			<span class="text-xs sm:text-sm font-intel font-medium text-[#111111]">
-				Daftar Model AI Teruji
+	<!-- Role Guidance Banner -->
+	<div class="p-3 rounded-xl border text-xs {activeTab === 'assistant' ? 'bg-emerald-50/50 border-emerald-200 text-emerald-900' : 'bg-blue-50/50 border-blue-200 text-blue-900'}">
+		{#if activeTab === 'assistant'}
+			<p>
+				<strong>Khusus Asisten Pribadi:</strong> Menjawab pesan privat pemilik, membaca foto struk belanja (VLM), mendengar rekaman Voice Note (Audio), dan riset harga supplier di internet. <em>Rekomendasi Pro: Gemini 3.8 Flash / Gemini 2.5 Pro.</em>
+			</p>
+		{:else}
+			<p>
+				<strong>Khusus Admin Toko Publik:</strong> Menjawab pertanyaan pelanggan umum di WhatsApp &amp; Telegram berbasis Knowledge Base. <em>Rekomendasi: Tetap gunakan Nemotron Free agar chat ribuan pelanggan tetap Rp 0 (gratis selamanya).</em>
+			</p>
+		{/if}
+	</div>
+
+	<!-- Models Grid -->
+	<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+		{#each models as model (model.model_id)}
+			{@const isSelected = isCurrentSelected(model)}
+			<div
+				class="group relative rounded-xl border p-4 transition-all duration-200 {isSelected ? 'border-[#0E6B2B] bg-emerald-50/20 ring-1 ring-[#0E6B2B]' : 'border-[#E5E7EB] bg-white hover:border-gray-300'} {!isModelAvailable(model) ? 'opacity-75 bg-gray-50/60' : 'cursor-pointer'}"
+				onclick={() => handleSelectModel(model)}
+				role="radio"
+				aria-checked={isSelected}
+				aria-label="Pilih model {model.name}"
+				tabindex={isModelAvailable(model) ? 0 : -1}
+				onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelectModel(model); }}
+			>
+				<!-- Top Bar: Badge & Radio -->
+				<div class="flex items-center justify-between gap-2 mb-2">
+					<div class="flex items-center gap-1.5 flex-wrap">
+						<span class="text-xs font-intel font-semibold text-[#111111]">{model.name}</span>
+						{#if model.badge}
+							<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium {model.tier === 'free' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-blue-50 text-blue-800 border border-blue-200'}">
+								{model.badge}
+							</span>
+						{/if}
+						{#if !isModelAvailable(model)}
+							<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900">
+								<svg class="w-3 h-3 text-amber-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+								<span>Khusus Pro</span>
+							</span>
+						{/if}
+					</div>
+
+					<!-- Bullet Radio Indicator (Selalu tampil konsisten dan responsif saat dipencet) -->
+					<div class="flex items-center">
+						<div
+							class="h-4 w-4 rounded-full border flex items-center justify-center transition-all {isSelected ? 'border-[#0E6B2B] bg-white ring-2 ring-[#0E6B2B]/25 shadow-xs' : 'border-gray-300 bg-white group-hover:border-gray-400'}"
+							aria-hidden="true"
+						>
+							{#if isSelected}
+								<div class="h-2 w-2 rounded-full bg-[#0E6B2B] transition-transform"></div>
+							{/if}
+						</div>
+					</div>
+				</div>
+
+				<!-- Description -->
+				<p class="text-xs text-[#4B5563] leading-relaxed mb-3">
+					{model.description || 'Model kecerdasan buatan untuk otomatisasi chat dan transaksi.'}
+				</p>
+
+				<!-- Capability Pills & Score -->
+				<div class="flex items-center justify-between pt-2 border-t border-gray-100">
+					<div class="flex items-center gap-1.5 flex-wrap">
+						{#if model.supports_vision}
+							<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px] font-medium border border-purple-200">
+								<svg class="w-3 h-3 text-purple-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+								<span>Foto / OCR</span>
+							</span>
+						{/if}
+						{#if model.supports_audio}
+							<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 text-amber-800 rounded text-[10px] font-medium border border-amber-200">
+								<svg class="w-3 h-3 text-amber-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+								<span>Audio / VN</span>
+							</span>
+						{/if}
+						{#if model.supports_web_search}
+							<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-sky-50 text-sky-700 rounded text-[10px] font-medium border border-sky-200">
+								<svg class="w-3 h-3 text-sky-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+								<span>Riset Web</span>
+							</span>
+						{/if}
+						<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded text-[10px] font-medium">
+							<svg class="w-3 h-3 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04z"/></svg>
+							<span>Penalaran</span>
+						</span>
+					</div>
+
+					<div class="text-right">
+						<span class="font-mono text-xs font-semibold text-[#0E6B2B]">{model.score}%</span>
+					</div>
+				</div>
+			</div>
+		{/each}
+	</div>
+
+	<!-- Footer Summary -->
+	<div class="p-3 bg-gray-50 rounded-xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-gray-600">
+		<div class="flex items-center gap-4 flex-wrap">
+			<span class="inline-flex items-center gap-1.5">
+				<svg class="w-3.5 h-3.5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+				<span>Asisten: <strong class="text-gray-900">{assistantModelName}</strong></span>
 			</span>
-			<div class="flex items-center gap-3">
-				<span class="text-xs font-intel text-[#6B7280]">
-					{selectedCount} dipilih
-				</span>
-				{#if isSaving}
-					<span class="text-xs text-[#0E6B2B] animate-pulse">Menyimpan...</span>
-				{/if}
-			</div>
+			<span class="text-gray-300">|</span>
+			<span class="inline-flex items-center gap-1.5">
+				<svg class="w-3.5 h-3.5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+				<span>Admin Toko: <strong class="text-gray-900">{adminModelName}</strong></span>
+			</span>
 		</div>
-
-		<div class="overflow-x-auto">
-			<table class="w-full text-left text-xs font-intel">
-				<thead class="text-[#6B7280] border-b border-[#E5E7EB] bg-white">
-					<tr>
-						<th class="py-2.5 px-4 font-normal">Status</th>
-						<th class="py-2.5 px-4 font-normal">Nama Model</th>
-						<th class="py-2.5 px-4 font-normal text-center">Skor Uji</th>
-						<th class="py-2.5 px-4 font-normal text-right">Jenis</th>
-						<th class="py-2.5 px-4 font-normal text-right">Tipe</th>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-[#F3F4F6]">
-					{#each paginatedModels as model (model.model_id)}
-						<tr class="hover:bg-[#F9FAFB] transition-colors {!model.isAccessible ? 'opacity-65 bg-gray-50/50' : ''}">
-							<td class="py-3 px-4">
-								<div class="flex items-center gap-2.5">
-									<button
-										type="button"
-										disabled={!model.isAccessible}
-										aria-label="Pilih model {model.name}"
-										onclick={() => handleSelectModel(model)}
-										class="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ease-in-out {!model.isAccessible ? 'cursor-not-allowed bg-[#E5E7EB]' : model.isSelected ? 'cursor-pointer bg-[#0E6B2B]' : 'cursor-pointer bg-[#D1D5DB]'}"
-									>
-										<span
-											class="pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out mt-[3px] {model.isSelected ? 'translate-x-4.5 ml-0' : 'translate-x-1'}"
-										></span>
-									</button>
-									<span class="text-[11px] font-intel {model.isSelected ? 'text-[#0E6B2B] font-medium' : 'text-[#6B7280]'}">
-										{#if !model.isAccessible}
-											<span class="text-amber-700 font-medium">Terkunci</span>
-										{:else}
-											{model.isSelected ? 'Aktif' : 'Nonaktif'}
-										{/if}
-									</span>
-								</div>
-							</td>
-
-							<td class="py-3 px-4 font-medium text-[#111111]">
-								<div class="flex items-center gap-2 flex-wrap">
-									<span>{model.name}</span>
-									{#if model.badge}
-										<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium {model.tier === 'free' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}">
-											{model.badge}
-										</span>
-									{/if}
-									{#if !model.isAccessible}
-										<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">
-											🔒 Perlu Pro
-										</span>
-									{/if}
-								</div>
-							</td>
-
-							<td class="py-3 px-4 text-center">
-								<span class="inline-flex items-center px-2 py-0.5 rounded font-mono font-semibold text-[11px] {(model.score ?? 90) >= 95 ? 'bg-emerald-50 text-emerald-800' : (model.score ?? 90) >= 90 ? 'bg-blue-50 text-blue-800' : 'bg-amber-50 text-amber-800'}">
-									{model.score}%
-								</span>
-							</td>
-
-							<td class="py-3 px-4 text-right">
-								<span class="inline-block px-2 py-0.5 rounded-full text-[11px] {model.jenis === 'Gratis' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-[#6B7280]'}">
-									{model.jenis}
-								</span>
-							</td>
-
-							<td class="py-3 px-4 text-right font-medium text-[#111111]">
-								{model.tipe}
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-
-		<div class="px-4 py-3 border-t border-[#E5E7EB] bg-[#FAFAFA] flex items-center justify-between text-xs font-intel text-[#6B7280]">
-			<span>{models.length} Model AI Teruji · November 2026</span>
-			<div class="flex items-center gap-2">
-				<button
-					type="button"
-					disabled={currentPage === 1}
-					onclick={() => currentPage = Math.max(1, currentPage - 1)}
-					class="px-2 py-1 rounded hover:text-[#111111] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-				>
-					Sebelumnya
-				</button>
-				{#each Array(totalPages) as _, idx}
-					<button
-						type="button"
-						onclick={() => currentPage = idx + 1}
-						class="w-6 h-6 flex items-center justify-center rounded border text-xs cursor-pointer {currentPage === idx + 1 ? 'bg-white border-[#111111] font-medium text-[#111111] shadow-2xs' : 'border-[#E5E7EB] text-[#6B7280] hover:text-[#111111]'}"
-					>
-						{idx + 1}
-					</button>
-				{/each}
-				<button
-					type="button"
-					disabled={currentPage === totalPages}
-					onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
-					class="px-2 py-1 rounded hover:text-[#111111] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-				>
-					Berikutnya
-				</button>
-			</div>
-		</div>
+		<span class="text-[11px] text-gray-500">Konfigurasi runtime otomatis aktif di server.</span>
 	</div>
 
 	{#if toastMessage}

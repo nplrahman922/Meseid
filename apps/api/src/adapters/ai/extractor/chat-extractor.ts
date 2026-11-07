@@ -16,14 +16,23 @@ export async function extractChatResponse(
   userText: string,
   persona: 'assistant' | 'admin',
   businessContext?: BusinessContext,
-  model?: string
+  model?: string,
+  runtimeOptions?: {
+    temperature?: number;
+    maxTokens?: number;
+    attachments?: Array<{
+      file_type: string;
+      mime_type?: string;
+      data_base64?: string;
+    }>;
+  }
 ): Promise<AiExtractionResult> {
   const startTime = Date.now();
   const profile = modelProfilesRegistry.getProfile(model || 'google/gemini-2.5-flash');
   const systemPrompt = PersonaPromptBuilder.buildSystemPrompt(persona, businessContext, profile);
 
   try {
-    const conversationMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    const conversationMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string | any[] }> = [
       { role: 'system', content: systemPrompt },
     ];
 
@@ -38,18 +47,66 @@ export async function extractChatResponse(
       }
     }
 
-    conversationMessages.push({ role: 'user', content: userText });
+    // Multimodal Vision support: jika ada lampiran foto base64
+    const photoAttachments = runtimeOptions?.attachments?.filter(
+      (a) => a.data_base64 && (a.file_type === 'photo' || a.mime_type?.startsWith('image/'))
+    );
 
-    const chatRes = await chatWithFallback({
-      model: profile.modelId,
-      messages: conversationMessages,
-      temperature: profile.temperature,
-      max_tokens: profile.maxTokens,
-      timeout_ms: 25000,
-    });
+    if (photoAttachments && photoAttachments.length > 0) {
+      const parts: any[] = [{ type: 'text', text: userText || 'Tolong baca dan periksa gambar/nota ini.' }];
+      for (const att of photoAttachments) {
+        const mime = att.mime_type || 'image/jpeg';
+        parts.push({
+          type: 'image_url',
+          image_url: {
+            url: `data:${mime};base64,${att.data_base64}`,
+          },
+        });
+      }
+      conversationMessages.push({ role: 'user', content: parts });
+    } else {
+      conversationMessages.push({ role: 'user', content: userText });
+    }
+
+    const effectiveTemperature = runtimeOptions?.temperature ?? profile.temperature;
+    const effectiveMaxTokens = runtimeOptions?.maxTokens ?? profile.maxTokens;
+
+    // Smart Multimodal Fallback: Jika request mengandung foto, fallback wajib ke model berkemampuan Vision
+    const hasPhoto = Boolean(photoAttachments && photoAttachments.length > 0);
+    const preferredFallbacks = hasPhoto
+      ? ['google/gemini-2.5-flash', 'openai/gpt-4o-mini']
+      : undefined;
+
+    const chatRes = await chatWithFallback(
+      {
+        model: profile.modelId,
+        messages: conversationMessages as any,
+        temperature: effectiveTemperature,
+        max_tokens: effectiveMaxTokens,
+        timeout_ms: 35000,
+      },
+      preferredFallbacks
+    );
 
     const latencyMs = Date.now() - startTime;
     const rawContent = chatRes.content.trim();
+
+    // Mode plain_text_regex (Free Tier Nemotron): langsung ekstraksi teks percakapan santun
+    if (profile.promptStyle === 'plain_text_regex') {
+      const sanitizedReply = JsonParser.sanitizeRawAiReply(rawContent);
+      return {
+        reply: ChatStylerFormatter.format(sanitizedReply),
+        intent: 'general',
+        sentiment: 'neutral',
+        summary: 'Percakapan pengguna',
+        transaction: null,
+        transactions: [],
+        model_used: chatRes.model,
+        attempts: chatRes.attempts || 1,
+        latency_ms: latencyMs,
+        schema_valid: true,
+      };
+    }
 
     let cleaned = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     if (cleaned.includes('```')) {

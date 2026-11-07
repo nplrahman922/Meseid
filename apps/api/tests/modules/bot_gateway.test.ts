@@ -40,7 +40,8 @@ describe("Bot Gateway Client & Status Proxy Routes", () => {
     const json = (await res.json()) as any;
     expect(json.status).toBe("ok");
     expect(json.whatsapp).toBeDefined();
-    expect(json.whatsapp.sessionId).toBe("default");
+    expect(json.whatsapp.sessionId).toBeTruthy();
+    expect(json.whatsapp.sessionId).not.toBe("default");
     expect(["open", "connecting", "qr_ready", "close", "logged_out"]).toContain(json.whatsapp.status);
   });
 

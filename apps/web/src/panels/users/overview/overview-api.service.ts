@@ -41,7 +41,9 @@ export async function submitOnboarding(
 				speakingStyles: data.storeSpeakingStyles || [],
 				customRules: data.storeCustomRules || [],
 				assistantSpeakingStyles: data.assistantSpeakingStyles || [],
-				assistantCustomRules: data.assistantCustomRules || []
+				assistantCustomRules: data.assistantCustomRules || [],
+				storeLanguage: data.storeLanguage || undefined,
+				assistantLanguage: data.assistantLanguage || undefined
 			},
 			knowledgeBase: (data.knowledgeBase || []).map((item) => ({
 				category: item.category || 'faq',
@@ -113,8 +115,10 @@ export async function fetchOnboardingDetail(): Promise<OverviewData | null> {
 			assistantBotName: d.assistantBotName || 'Asisten Bisnis',
 			storeSpeakingStyles: d.storeSpeakingStyles || ['Ramah', 'Informatif'],
 			storeCustomRules: d.storeCustomRules || [],
+			storeLanguage: d.storeLanguage || '',
 			assistantSpeakingStyles: d.assistantSpeakingStyles || ['Ramah', 'Informatif'],
 			assistantCustomRules: d.assistantCustomRules || [],
+			assistantLanguage: d.assistantLanguage || '',
 			knowledgeBase: Array.isArray(d.knowledgeBase)
 				? d.knowledgeBase.map((k: any) => ({
 						title: k.title,

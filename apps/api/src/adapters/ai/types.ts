@@ -2,7 +2,7 @@ export type AiRole = 'system' | 'user' | 'assistant';
 
 export interface AiMessage {
   role: AiRole;
-  content: string;
+  content: string | any[];
 }
 
 export interface AiModelPricing {
@@ -147,6 +147,7 @@ export interface BusinessContext {
   knowledgeBaseContext?: string;
   memoryDigest?: string;
   customPersonaPrompt?: string;
+  responseLanguage?: string;
   recentTurns?: ConversationTurn[];
 }
 

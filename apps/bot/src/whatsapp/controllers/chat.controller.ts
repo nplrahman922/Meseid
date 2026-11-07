@@ -7,6 +7,7 @@ import { apiClient } from '../models/api.client';
 import { whatsAppView } from '../views/whatsapp.view';
 import type { InboundMessagePayload } from '../models/types';
 import { chatPacer } from '../../common/chat.pacer';
+import { ImageOptimizer } from '../media/image-optimizer';
 import {
   logWhatsAppMessageReceived,
   logWhatsAppMediaReceived,
@@ -57,6 +58,9 @@ export class ChatController {
     const externalMsgId = msg.key.id;
 
     logWhatsAppMessageReceived(sessionId, externalMsgId, senderId, text, remoteJid);
+
+    // Kirim acknowledgment tanda terima (centang dua diterima di WhatsApp pengirim)
+    await sock.readMessages([msg.key]).catch(() => {});
 
     const payload: InboundMessagePayload = {
       channel: 'whatsapp',
@@ -139,10 +143,14 @@ export class ChatController {
 
     logWhatsAppMediaReceived(sessionId, externalMsgId, senderId, 'photo', remoteJid);
 
+    // Kirim acknowledgment tanda terima
+    await sock.readMessages([msg.key]).catch(() => {});
+
     // Tampilkan indikator sedang memproses/mengetik
     await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
 
     let base64Data: string | undefined;
+    let photoMimeType = 'image/jpeg';
     try {
       const { downloadMediaMessage } = await getBaileys();
       const buffer = await downloadMediaMessage(
@@ -155,10 +163,12 @@ export class ChatController {
         }
       );
       if (Buffer.isBuffer(buffer)) {
-        base64Data = buffer.toString('base64');
+        const optimized = await ImageOptimizer.optimize(buffer, 'image/jpeg');
+        base64Data = optimized.base64;
+        photoMimeType = optimized.mimeType;
       }
     } catch (err: any) {
-      whatsappLogger.warn(`Gagal mengunduh buffer media WhatsApp: ${err.message}`, {
+      whatsappLogger.warn(`Gagal mengunduh atau mengoptimasi buffer media WhatsApp: ${err.message}`, {
         externalMsgId,
         sessionId,
       });
@@ -178,7 +188,90 @@ export class ChatController {
         {
           file_id: externalMsgId,
           file_type: 'photo',
-          mime_type: 'image/jpeg',
+          mime_type: photoMimeType,
+          data_base64: base64Data,
+        },
+      ],
+      timestamp: Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000),
+    };
+
+    try {
+      const response = await apiClient.sendInboundMessage(payload);
+
+      if (response.reply_text) {
+        const fullMessage = whatsAppView.formatReplyWithActions(
+          response.reply_text,
+          response.action_buttons
+        );
+        await sock.sendMessage(remoteJid, { text: fullMessage });
+      }
+    } finally {
+      await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
+    }
+  }
+
+  /**
+   * Menangani kiriman rekaman suara / voice notes dari pengguna WhatsApp.
+   */
+  async handleAudioMessage(
+    sock: WASocket,
+    msg: WAMessage,
+    sessionId: string,
+    botPhoneNumber: string
+  ): Promise<void> {
+    const remoteJid = msg.key.remoteJid;
+    if (!remoteJid || !msg.key.id) return;
+
+    const senderJid = msg.key.participant || remoteJid;
+    const senderId = await this.resolveSenderId(sock, senderJid);
+    const senderName = msg.pushName || senderId;
+    const isGroup = remoteJid.endsWith('@g.us');
+    const externalMsgId = msg.key.id;
+
+    logWhatsAppMediaReceived(sessionId, externalMsgId, senderId, 'audio', remoteJid);
+
+    // Kirim acknowledgment tanda terima
+    await sock.readMessages([msg.key]).catch(() => {});
+
+    await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+
+    let base64Data: string | undefined;
+    try {
+      const { downloadMediaMessage } = await getBaileys();
+      const buffer = await downloadMediaMessage(
+        msg,
+        'buffer',
+        {},
+        {
+          logger: whatsappLogger as any,
+          reuploadRequest: sock.updateMediaMessage,
+        }
+      );
+      if (Buffer.isBuffer(buffer)) {
+        base64Data = buffer.toString('base64');
+      }
+    } catch (err: any) {
+      whatsappLogger.warn(`Gagal mengunduh buffer audio WhatsApp: ${err.message}`, {
+        externalMsgId,
+        sessionId,
+      });
+    }
+
+    const payload: InboundMessagePayload = {
+      channel: 'whatsapp',
+      bot_id: botPhoneNumber || sessionId,
+      external_message_id: externalMsgId,
+      sender_id: senderId,
+      sender_name: senderName,
+      chat_id: remoteJid,
+      chat_type: isGroup ? 'group' : 'private',
+      message_type: 'audio',
+      text: '',
+      attachments: [
+        {
+          file_id: externalMsgId,
+          file_type: 'audio',
+          mime_type: 'audio/ogg; codecs=opus',
           data_base64: base64Data,
         },
       ],

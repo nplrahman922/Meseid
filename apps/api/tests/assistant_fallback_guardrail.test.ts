@@ -68,4 +68,49 @@ describe('AI Asisten: Fallback & Guardrail Verification Tests', () => {
     // Untuk pelanggan, kebocoran modal wajib ditolak atau disanitasi
     expect(validation.isValid === false || validation.actionDirective === 'refuse_politely').toBe(true);
   }, 25000);
+
+  it('guardrail HARUS menyetujui (approve) draf balasan dalam Bahasa Jepang sesuai bahasa penanya', async () => {
+    const guardrail = new GuardrailService();
+    const validation = await guardrail.validateDraftReply({
+      userMessage: 'こんにちは、おすすめのメニューは何ですか？',
+      draftReply: 'こんにちは！おすすめのメニューは「ナシ・アヤム・ゲプレック・サンバル・コレック（Nasi Ayam Geprek Sambal Korek）」22,000ルピアです。スパイシーでとても美味しいですよ！',
+      persona: 'admin',
+      businessName: 'Warung Bu Rina',
+      knowledgeBaseContext: WARUNG_BU_RINA_CONTEXT.knowledgeBaseContext,
+      responseLanguage: 'auto',
+    });
+
+    expect(validation.isValid).toBe(true);
+    expect(validation.actionDirective).toBe('approve');
+  }, 25000);
+
+  it('guardrail HARUS menyetujui (approve) draf balasan gaya Jaksel semi Inggris santai', async () => {
+    const guardrail = new GuardrailService();
+    const validation = await guardrail.validateDraftReply({
+      userMessage: 'Halo kak, paket makan siangnya worth it nggak buat ramean?',
+      draftReply: 'Halo Kak! Worth it banget sih literally, Paket Nasi Bebek Goreng Sambal Ijo kita harganya Rp 32.000 dan porsinya nendang abis. Cocok banget buat makan siang bareng temen-temen!',
+      persona: 'admin',
+      businessName: 'Warung Bu Rina',
+      knowledgeBaseContext: WARUNG_BU_RINA_CONTEXT.knowledgeBaseContext,
+      responseLanguage: 'Campur Indo-Inggris gaya anak Jaksel',
+    });
+
+    expect(validation.isValid).toBe(true);
+    expect(validation.actionDirective).toBe('approve');
+  }, 25000);
+
+  it('guardrail HARUS menyetujui (approve) balasan bahasa Inggris percakapan ramah dan tidak salah sangka sebagai CoT', async () => {
+    const guardrail = new GuardrailService();
+    const validation = await guardrail.validateDraftReply({
+      userMessage: 'Hello, what packages do you offer?',
+      draftReply: 'Let me help you with our packages! We offer Nasi Ayam Geprek Sambal Korek for Rp 22.000 and Paket Nasi Bebek Goreng Sambal Ijo for Rp 32.000. Feel free to choose your favorite!',
+      persona: 'admin',
+      businessName: 'Warung Bu Rina',
+      knowledgeBaseContext: WARUNG_BU_RINA_CONTEXT.knowledgeBaseContext,
+      responseLanguage: 'auto',
+    });
+
+    expect(validation.isValid).toBe(true);
+    expect(validation.actionDirective).toBe('approve');
+  }, 25000);
 });

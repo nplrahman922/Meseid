@@ -117,6 +117,46 @@ export class ApiClient {
       return { isConflict: false };
     }
   }
+
+  /**
+   * Mengirim notifikasi internal ke backend API bahwa sesi WhatsApp telah logout dari HP.
+   */
+  async notifyWhatsAppLoggedOut(
+    sessionId: string,
+    ownerId?: string
+  ): Promise<boolean> {
+    const targetUrl = `${this.apiUrl}/api/internal/whatsapp/on-logged-out`;
+    try {
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-secret': this.internalSecret,
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          owner_id: ownerId,
+        }),
+      });
+
+      if (!response.ok) {
+        apiClientLogger.warn(
+          `Gagal notifikasi WhatsApp logged out ke API (${targetUrl}): status ${response.status}`
+        );
+        return false;
+      }
+
+      apiClientLogger.info(
+        `Sukses notifikasi WhatsApp logged out untuk sesi '${sessionId}' ke API.`
+      );
+      return true;
+    } catch (err: any) {
+      apiClientLogger.warn(
+        `Gagal mengirim notifikasi WhatsApp logged out ke API: ${err.message}`
+      );
+      return false;
+    }
+  }
 }
 
 export const apiClient = new ApiClient();

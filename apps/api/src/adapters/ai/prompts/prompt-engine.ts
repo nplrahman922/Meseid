@@ -27,16 +27,23 @@ function readMarkdown(filePath: string): string {
  * dan peran percakapan (Admin Toko vs Asisten Pemilik).
  */
 export class PromptEngine {
+  /**
+   * Mengosongkan cache berkas markdown di memori.
+   */
+  static clearCache(): void {
+    fileCache.clear();
+  }
+
   static compileSystemPrompt(input: PromptEngineInput): string {
     const { persona, businessContext, modelProfile } = input;
     const isFreeCompact = modelProfile?.tier === 'free' && modelProfile?.promptStyle === 'plain_text_regex';
 
     // 1. Pilih template dasar (Base Template)
     let baseFile = 'admin-store.system.md';
-    if (isFreeCompact) {
-      baseFile = 'compact-free.system.md';
-    } else if (persona === 'assistant') {
+    if (persona === 'assistant') {
       baseFile = 'assistant-owner.system.md';
+    } else if (isFreeCompact) {
+      baseFile = 'compact-free.system.md';
     }
     let systemPrompt = readMarkdown(join(TEMPLATES_DIR, baseFile));
 
@@ -44,16 +51,18 @@ export class PromptEngine {
     const partials: string[] = [];
 
     // Partials Keamanan / Hak Akses Peran
-    if (!isFreeCompact) {
-      if (persona === 'assistant') {
-        partials.push(readMarkdown(join(PARTIALS_DIR, 'owner-trust-access.md')));
-      } else {
+    if (persona === 'assistant') {
+      partials.push(readMarkdown(join(PARTIALS_DIR, 'owner-trust-access.md')));
+    } else {
+      if (!isFreeCompact) {
         partials.push(readMarkdown(join(PARTIALS_DIR, 'anti-leak-guard.md')));
       }
     }
 
     // Partials Stempel Waktu Real-time WIB
-    partials.push(readMarkdown(join(PARTIALS_DIR, 'temporal-wib.md')));
+    if (!isFreeCompact || persona === 'assistant') {
+      partials.push(readMarkdown(join(PARTIALS_DIR, 'temporal-wib.md')));
+    }
 
     // Partials Format Output (JSON vs Plain Text)
     if (modelProfile?.promptStyle === 'plain_text_regex') {
@@ -68,10 +77,24 @@ export class PromptEngine {
     }
 
     // Partials Aturan Membalas Pesan Kutipan (WhatsApp / Telegram Reply)
-    partials.push(readMarkdown(join(PARTIALS_DIR, 'quoted-reply-rule.md')));
+    if (!isFreeCompact || persona === 'assistant') {
+      partials.push(readMarkdown(join(PARTIALS_DIR, 'quoted-reply-rule.md')));
+    }
 
     // Partials Format & Tipografi Pesan Chat (WhatsApp / Telegram)
-    partials.push(readMarkdown(join(PARTIALS_DIR, 'chat-typography-format.md')));
+    if (!isFreeCompact || persona === 'assistant') {
+      partials.push(readMarkdown(join(PARTIALS_DIR, 'chat-typography-format.md')));
+    }
+
+    // Partials Format Bahasa Balasan (Bebas / Auto Mirroring vs Batasan Strict Owner)
+    const rawLang = businessContext?.responseLanguage?.trim();
+    const isAutoLanguage = !rawLang || rawLang.toLowerCase() === 'auto';
+    const languagePartial = isAutoLanguage
+      ? PromptEngine.loadPartial('response-language-auto.md')
+      : PromptEngine.loadPartial('response-language-strict.md', {
+          allowedLanguages: rawLang,
+        });
+    partials.push(languagePartial);
 
     systemPrompt += '\n\n' + partials.filter(Boolean).join('\n\n');
 
@@ -96,6 +119,7 @@ export class PromptEngine {
       memoryDigest: businessContext?.memoryDigest
         ? `KONTEKS MEMORI:\n${businessContext.memoryDigest}`
         : '',
+      languageDirective: languagePartial,
       nowWib,
     };
 
@@ -106,7 +130,32 @@ export class PromptEngine {
       .replace(/{{customPersonaPrompt}}/g, vars.customPersonaPrompt)
       .replace(/{{knowledgeBaseContext}}/g, vars.knowledgeBaseContext)
       .replace(/{{memoryDigest}}/g, vars.memoryDigest)
+      .replace(/{{languageDirective}}/g, vars.languageDirective)
       .replace(/{{nowWib}}/g, vars.nowWib)
       .trim();
+  }
+
+  /**
+   * Membaca dan melakukan substitusi variabel pada berkas template Markdown mandiri.
+   */
+  static loadTemplate(templateName: string, vars: Record<string, string> = {}): string {
+    const filename = templateName.endsWith('.md') ? templateName : `${templateName}.md`;
+    let content = readMarkdown(join(TEMPLATES_DIR, filename));
+    for (const [key, val] of Object.entries(vars)) {
+      content = content.replace(new RegExp(`{{${key}}}`, 'g'), val);
+    }
+    return content.trim();
+  }
+
+  /**
+   * Membaca dan melakukan substitusi variabel pada berkas partial Markdown mandiri.
+   */
+  static loadPartial(partialName: string, vars: Record<string, string> = {}): string {
+    const filename = partialName.endsWith('.md') ? partialName : `${partialName}.md`;
+    let content = readMarkdown(join(PARTIALS_DIR, filename));
+    for (const [key, val] of Object.entries(vars)) {
+      content = content.replace(new RegExp(`{{${key}}}`, 'g'), val);
+    }
+    return content.trim();
   }
 }

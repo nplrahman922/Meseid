@@ -6,10 +6,19 @@
 	}
 
 	let {
-		businessName = 'Warung Bu Rina',
+		businessName = 'Meseid Store',
 		role = 'Owner',
-		dateText = '16 Oktober 2026, 10.00 WIB'
+		dateText = ''
 	}: Props = $props();
+
+	let formattedDate = $derived(
+		dateText ||
+			new Date().toLocaleDateString('id-ID', {
+				day: 'numeric',
+				month: 'long',
+				year: 'numeric'
+			})
+	);
 </script>
 
 <header class="w-full space-y-4">
@@ -19,10 +28,10 @@
 			Knowledge Base
 		</h1>
 		<p class="text-sm font-inter text-[#4B5563]">
-			Info usaha yang boleh dipakai bot untuk menjawab pembeli.
+			Info usaha yang boleh dipakai bot untuk menjawab pembeli dan melayani operasional.
 		</p>
 		<p class="text-xs font-inter text-[#9CA3AF]">
-			Data contoh · {businessName} · {role} · {dateText}
+			{businessName} · {role} · {formattedDate}
 		</p>
 	</div>
 

@@ -18,21 +18,25 @@ export class MemoryWindowReader {
     payload: InboundMessageInput,
     ownerId: string,
     isOwner: boolean,
-    persona: "assistant" | "admin"
+    persona: "assistant" | "admin",
+    effectiveMessage?: string
   ): Promise<MemoryWindowResult> {
     let recentTurns: ConversationTurn[] = [];
     let memoryDigest: string | undefined;
-    const rawUserMessage = payload.text?.trim() || "";
+    const rawUserMessage = effectiveMessage?.trim() || payload.text?.trim() || "";
     const quoted = payload.quoted_text?.trim();
     const userMessage = quoted
       ? `[Membalas pesan]: "${quoted}"\n\n[Pesan]: ${rawUserMessage}`
       : rawUserMessage;
 
+    const isGroup = payload.chat_type === "group" || payload.chat_id?.endsWith("@g.us");
+    const threadId = isGroup ? payload.chat_id : payload.sender_id;
+
     await withSystemContext(async (tx) => {
       const history = await getRecentConversationHistory(tx, {
         ownerId,
         channel: payload.channel,
-        senderId: payload.sender_id,
+        senderId: threadId,
         isOwner,
         limit: 30,
       });
@@ -49,7 +53,7 @@ export class MemoryWindowReader {
       await saveConversationMessage(tx, {
         ownerId,
         channel: payload.channel,
-        senderId: payload.sender_id,
+        senderId: threadId,
         isOwner,
         persona,
         role: "user",

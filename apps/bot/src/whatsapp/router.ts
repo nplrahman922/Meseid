@@ -117,6 +117,17 @@ export class WhatsAppRouter {
       return;
     }
 
+    // 3b. Ekstraksi Rekaman Suara / Voice Note
+    if (contentType === 'audioMessage') {
+      await chatController.handleAudioMessage(
+        sock,
+        msg,
+        sessionId,
+        botPhoneNumber
+      );
+      return;
+    }
+
     // 4. Ekstraksi Pesan Teks
     let textContent = '';
     if (contentType === 'conversation') {

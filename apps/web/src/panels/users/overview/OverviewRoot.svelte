@@ -256,6 +256,7 @@
 								initialBotName={draftData.storeBotName}
 								initialSpeakingStyles={draftData.storeSpeakingStyles}
 								initialCustomRules={draftData.storeCustomRules}
+								initialLanguage={draftData.storeLanguage}
 								showSubmitButton={true}
 								onBack={() => {
 									direction = -1;
@@ -269,11 +270,16 @@
 									draftData.storeBotName = data.botName;
 									draftData.storeSpeakingStyles = data.speakingStyles;
 									draftData.storeCustomRules = data.customRules;
+									draftData.storeLanguage = data.language;
 									saveOverviewDraft({
 										storeBotName: data.botName,
 										storeSpeakingStyles: data.speakingStyles,
-										storeCustomRules: data.customRules
+										storeCustomRules: data.customRules,
+										storeLanguage: data.language
 									});
+									submitOnboarding(draftData).catch((err) =>
+										console.error('Auto sync draft error:', err)
+									);
 								}}
 							/>
 						{:else if subStep3 === 'assistant'}
@@ -282,6 +288,7 @@
 								initialBotName={draftData.assistantBotName}
 								initialSpeakingStyles={draftData.assistantSpeakingStyles}
 								initialCustomRules={draftData.assistantCustomRules}
+								initialLanguage={draftData.assistantLanguage}
 								showSubmitButton={true}
 								onBack={() => {
 									direction = -1;
@@ -295,11 +302,16 @@
 									draftData.assistantBotName = data.botName;
 									draftData.assistantSpeakingStyles = data.speakingStyles;
 									draftData.assistantCustomRules = data.customRules;
+									draftData.assistantLanguage = data.language;
 									saveOverviewDraft({
 										assistantBotName: data.botName,
 										assistantSpeakingStyles: data.speakingStyles,
-										assistantCustomRules: data.customRules
+										assistantCustomRules: data.customRules,
+										assistantLanguage: data.language
 									});
+									submitOnboarding(draftData).catch((err) =>
+										console.error('Auto sync draft error:', err)
+									);
 								}}
 							/>
 						{/if}

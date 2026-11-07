@@ -12,7 +12,7 @@ export interface InboundMessagePayload {
   sender_username?: string;
   chat_id: string;
   chat_type: 'private' | 'group';
-  message_type: 'text' | 'photo' | 'document' | 'callback';
+  message_type: 'text' | 'photo' | 'document' | 'callback' | 'audio';
   text?: string;
   quoted_text?: string;
   is_from_me?: boolean;

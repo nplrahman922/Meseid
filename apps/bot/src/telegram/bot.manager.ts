@@ -137,7 +137,7 @@ export class TelegramBotManager {
   }
 
   /**
-   * Inisialisasi bot default dari file .env (berguna untuk dev lokal atau Master Bot).
+   * Inisialisasi bot dari file .env (Master System Bot).
    */
   async initFromEnv(): Promise<void> {
     const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
@@ -148,13 +148,13 @@ export class TelegramBotManager {
 
     try {
       await this.registerBot({
-        botId: 'default',
+        botId: 'env_master',
         token,
         mode: process.env.TELEGRAM_MODE === 'webhook' ? 'webhook' : 'polling',
         webhookUrl: process.env.TELEGRAM_WEBHOOK_URL,
       });
     } catch (err: any) {
-      telegramLogger.error(`Gagal menginisialisasi default bot dari .env: ${err.message}`, err);
+      telegramLogger.error(`Gagal menginisialisasi bot dari .env: ${err.message}`, err);
     }
   }
 

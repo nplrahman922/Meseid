@@ -3,47 +3,25 @@
 
 	interface Props {
 		entries?: KnowledgeBaseEntry[];
+		isLoading?: boolean;
 		onEditEntry?: (entry: KnowledgeBaseEntry) => void;
+		onDeleteEntry?: (entry: KnowledgeBaseEntry) => void;
 	}
 
 	let {
-		entries = [
-			{
-				id: '1',
-				title: 'Teh original',
-				category: 'Produk / Harga',
-				content: 'Rp 5.000 per gelas',
-				updatedAt: '16 Okt · 09.20 WIB'
-			},
-			{
-				id: '2',
-				title: 'Jam buka warung',
-				category: 'Jam operasional',
-				content: 'Sen-Sab 08.00-20.00 WIB; Minggu tutup',
-				updatedAt: '15 Okt · 17.00 WIB'
-			},
-			{
-				id: '3',
-				title: 'Pesanan katering',
-				category: 'Produk',
-				content: 'Pesan minimal 1 hari sebelumnya',
-				updatedAt: '14 Okt · 10.00 WIB'
-			},
-			{
-				id: '4',
-				title: 'Bisa bayar pakai QRIS?',
-				category: 'FAQ',
-				content: 'Bisa, QRIS tersedia di kasir warung',
-				updatedAt: '14 Okt · 09.00 WIB'
-			}
-		],
-		onEditEntry
+		entries = [],
+		isLoading = false,
+		onEditEntry,
+		onDeleteEntry
 	}: Props = $props();
 
 	let searchQuery = $state('');
 	let selectedCategory = $state('Semua');
 
-	const categories = ['Semua', 'Produk / Harga', 'Jam operasional', 'Produk', 'FAQ'];
+	let categories = $derived([
+		'Semua',
+		...Array.from(new Set(entries.map((e) => e.category).filter(Boolean)))
+	]);
 
 	let filteredEntries = $derived(
 		entries.filter((entry) => {
@@ -57,13 +35,34 @@
 			return matchesCategory && matchesSearch;
 		})
 	);
+
+	function formatDate(val?: string): string {
+		if (!val) return 'Baru saja';
+		try {
+			const d = new Date(val);
+			if (isNaN(d.getTime())) return val;
+			return d.toLocaleDateString('id-ID', {
+				day: 'numeric',
+				month: 'short',
+				hour: '2-digit',
+				minute: '2-digit'
+			});
+		} catch {
+			return val;
+		}
+	}
 </script>
 
 <div class="bg-white rounded-2xl border border-[#E5E7EB] p-5 sm:p-6 space-y-5 shadow-xs">
 	<!-- Card Title -->
-	<h2 class="text-base sm:text-lg font-intel font-medium text-[#111111]">
-		Entri usaha
-	</h2>
+	<div class="flex items-center justify-between">
+		<h2 class="text-base sm:text-lg font-intel font-medium text-[#111111]">
+			Entri usaha
+		</h2>
+		{#if isLoading}
+			<span class="text-xs font-inter text-[#0E6B2B] animate-pulse">Memuat data...</span>
+		{/if}
+	</div>
 
 	<!-- Search Input -->
 	<div class="space-y-1.5">
@@ -105,6 +104,7 @@
 				<tr>
 					<th class="py-2.5 px-3 font-normal">Judul / Pertanyaan</th>
 					<th class="py-2.5 px-3 font-normal">Kategori</th>
+					<th class="py-2.5 px-3 font-normal">Visibilitas</th>
 					<th class="py-2.5 px-3 font-normal">Jawaban / Detail</th>
 					<th class="py-2.5 px-3 font-normal">Diperbarui</th>
 					<th class="py-2.5 px-3 font-normal text-right">Tindakan</th>
@@ -113,33 +113,59 @@
 			<tbody class="divide-y divide-[#F3F4F6]">
 				{#if filteredEntries.length === 0}
 					<tr>
-						<td colspan="5" class="py-8 text-center text-[#9CA3AF] font-intel">
-							Tidak ada entri yang cocok dengan pencarian "{searchQuery}".
+						<td colspan="6" class="py-8 text-center text-[#9CA3AF] font-intel">
+							{#if isLoading}
+								Sedang mengambil entri knowledge base...
+							{:else if searchQuery}
+								Tidak ada entri yang cocok dengan pencarian "{searchQuery}".
+							{:else}
+								Belum ada entri tersimpan. Klik "Tambah entri" untuk memulai.
+							{/if}
 						</td>
 					</tr>
 				{:else}
 					{#each filteredEntries as item (item.id)}
 						<tr class="hover:bg-[#F9FAFB] transition-colors">
-							<td class="py-3 px-3 font-medium text-[#111111]">
+							<td class="py-3 px-3 font-medium text-[#111111] max-w-[180px]">
 								{item.title}
 							</td>
-							<td class="py-3 px-3 text-[#6B7280]">
+							<td class="py-3 px-3 text-[#6B7280] whitespace-nowrap">
 								{item.category}
 							</td>
-							<td class="py-3 px-3 text-[#111111] max-w-xs truncate">
+							<td class="py-3 px-3 whitespace-nowrap">
+								{#if item.is_internal}
+									<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Hanya Asisten Bisnis & Owner">
+										🔒 Hanya Asisten
+									</span>
+								{:else}
+									<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-green-50 text-[#0E6B2B] border border-green-200" title="Dapat dijawab ke pelanggan umum">
+										✓ Publik
+									</span>
+								{/if}
+							</td>
+							<td class="py-3 px-3 text-[#111111] max-w-xs truncate" title={item.content}>
 								{item.content}
 							</td>
 							<td class="py-3 px-3 text-[#6B7280] whitespace-nowrap">
-								{item.updatedAt}
+								{formatDate(item.updated_at || item.updatedAt || item.created_at)}
 							</td>
-							<td class="py-3 px-3 text-right">
-								<button
-									type="button"
-									onclick={() => onEditEntry?.(item)}
-									class="text-[#111111] hover:text-[#0E6B2B] hover:underline font-medium inline-flex items-center gap-0.5 cursor-pointer"
-								>
-									Edit ↗
-								</button>
+							<td class="py-3 px-3 text-right whitespace-nowrap">
+								<div class="inline-flex items-center gap-3">
+									<button
+										type="button"
+										onclick={() => onEditEntry?.(item)}
+										class="text-[#111111] hover:text-[#0E6B2B] hover:underline font-medium inline-flex items-center gap-0.5 cursor-pointer"
+									>
+										Edit ↗
+									</button>
+									<button
+										type="button"
+										onclick={() => onDeleteEntry?.(item)}
+										class="text-red-500 hover:text-red-700 hover:underline font-medium inline-flex items-center gap-0.5 cursor-pointer"
+									>
+										Hapus
+									</button>
+								</div>
 							</td>
 						</tr>
 					{/each}

@@ -44,6 +44,11 @@ Terutama pada kode backend (`apps/api` dan `apps/bot`), **DILARANG KERAS** mengg
 ---
 
 ## 3. Ketentuan Lingkungan & Database
-1. **Mode Produksi Database Murni:** Tidak menggunakan mode *development bypass* melalui `.env`. Seluruh konfigurasi dan identitas bot harus dibaca secara riil dari tabel PostgreSQL (`owners`, `bot_configs`, `channel_connections`, `knowledge_base`).
+1. **Mode Produksi Database Murni & Larangan Sesi "Default":**
+   - Tidak menggunakan mode *development bypass* melalui `.env`. Seluruh konfigurasi dan identitas bot harus dibaca secara riil dari tabel PostgreSQL (`owners`, `bot_configs`, `channel_connections`, `knowledge_base`).
+   - **DILARANG KERAS** menyediakan atau menginisialisasi sesi fallback/dev bernama `"default"` pada `apps/bot` maupun `apps/api`.
+   - Tidak boleh ada *autostart* sesi bot WhatsApp tanpa `owner_id` (seperti `initFromEnv` dengan sesi `'default'`).
+   - Seluruh sesi kanal (WhatsApp, Telegram, dll) **WAJIB** terikat secara mutlak pada identitas tenant pemilik (`owner_id` / akun Gmail) dengan format `owner_<owner_id>`. Jika `owner_id` tidak valid atau tidak ditemukan, sistem **HARUS GAGAL (fail-closed)** dan dilarang dialihkan ke sesi fallback `"default"`.
+   - Satu nomor WhatsApp hanya boleh terhubung ke satu akun pemilik bisnis. Login ulang oleh akun Gmail yang sama harus dikenali sebagai *seamless reconnect*, sedangkan upaya klaim oleh akun bisnis berbeda wajib ditolak dan memicu proteksi keamanan.
 2. **Multi-Tenant RLS Compliance:** Setiap query mutlak memfilter data berdasarkan `owner_id`.
 3. **100% Free-Tier AI Models:** Menggunakan model gratis dari Vercel AI Gateway / OpenRouter dengan fallback dinamis dan Guardrail Validator sekunder.

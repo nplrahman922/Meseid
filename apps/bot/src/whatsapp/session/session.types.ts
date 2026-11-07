@@ -13,4 +13,5 @@ export interface WhatsAppSessionEntry {
   reconnectAttempts: number;
   reconnectTimer?: NodeJS.Timeout;
   clearSession?: () => Promise<void>;
+  isDestroyed?: boolean;
 }

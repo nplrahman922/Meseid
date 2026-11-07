@@ -66,9 +66,14 @@ export class AiAdapter {
     userText: string,
     persona: 'assistant' | 'admin',
     businessContext?: BusinessContext,
-    model?: string
+    model?: string,
+    runtimeOptions?: {
+      temperature?: number;
+      maxTokens?: number;
+      attachments?: any[];
+    }
   ): Promise<AiExtractionResult> {
-    return extractFn(userText, persona, businessContext, model);
+    return extractFn(userText, persona, businessContext, model, runtimeOptions);
   }
 
   probeModelHealth(modelId: string, timeoutMs?: number) {

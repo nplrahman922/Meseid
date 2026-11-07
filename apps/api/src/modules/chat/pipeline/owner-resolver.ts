@@ -23,6 +23,7 @@ export class OwnerResolver {
    */
   static async resolveOrBindOwner(payload: InboundMessageInput): Promise<ChannelOwnerResolution | null> {
     return withSystemContext(async (tx) => {
+      const cleanBotId = payload.bot_id.replace(/[^0-9]/g, "");
       const rows = await tx<ChannelOwnerResolution[]>`
         SELECT 
           o.id AS owner_id,
@@ -37,7 +38,13 @@ export class OwnerResolver {
         JOIN users u ON u.id = o.user_id
         LEFT JOIN bot_configs bc ON bc.owner_id = o.id
         WHERE cc.channel = ${payload.channel}
-          AND cc.external_account_id = ${payload.bot_id}
+          AND (
+            cc.external_account_id = ${payload.bot_id}
+            OR cc.external_account_id = ${"+" + payload.bot_id}
+            OR cc.external_account_id LIKE ${cleanBotId + ':%'}
+            OR cc.session_ref = ${`session_tg_${cleanBotId}`}
+            OR (${cleanBotId !== ""} AND regexp_replace(cc.external_account_id, '[^0-9]', '', 'g') = ${cleanBotId})
+          )
           AND cc.status = 'connected'
         LIMIT 1;
       `;
@@ -46,58 +53,11 @@ export class OwnerResolver {
         return rows[0];
       }
 
-      if (env.DEV_AUTO_BIND_OWNER) {
-        chatLogger.info(
-          `DEV_AUTO_BIND_OWNER aktif: Mengikat bot_id '${payload.bot_id}' ke owner aktif pertama`,
-          { channel: payload.channel, botId: payload.bot_id }
-        );
-
-        const defaultOwners = await tx<ChannelOwnerResolution[]>`
-          SELECT 
-            o.id AS owner_id,
-            u.id AS user_id,
-            o.business_name,
-            o.business_type,
-            o.status AS owner_status,
-            o.phone AS owner_phone
-          FROM owners o
-          JOIN users u ON u.id = o.user_id
-          WHERE o.status = 'active'
-          ORDER BY o.created_at ASC
-          LIMIT 1;
-        `;
-
-        if (defaultOwners.length > 0) {
-          const targetOwner = defaultOwners[0];
-
-          await withOwnerContext(targetOwner.owner_id, targetOwner.user_id, async (ownerTx) => {
-            await ownerTx`
-              INSERT INTO channel_connections (
-                owner_id, channel, external_account_id, status, session_ref
-              )
-              VALUES (
-                ${targetOwner.owner_id},
-                ${payload.channel},
-                ${payload.bot_id},
-                'connected',
-                ${`dev_auto_bind_${Date.now()}`}
-              )
-              ON CONFLICT (channel, external_account_id)
-              DO UPDATE SET 
-                owner_id = EXCLUDED.owner_id,
-                status = 'connected',
-                updated_at = now();
-            `;
-          });
-
-          chatLogger.info(
-            `Berhasil auto-bind bot_id '${payload.bot_id}' ke owner '${targetOwner.business_name}' (${targetOwner.owner_id})`
-          );
-
-          return targetOwner;
-        }
-      }
-
+      // Mode Produksi Murni (Fail-Closed sesuai AGENTS.md):
+      // Jika bot_id belum terikat di channel_connections, tolak akses dan jangan pernah auto-bind ke owner lain.
+      chatLogger.warn(
+        `Pesan masuk diabaikan: Bot ID '${payload.bot_id}' pada kanal '${payload.channel}' belum terdaftar di channel_connections (fail-closed).`
+      );
       return null;
     });
   }
@@ -154,7 +114,7 @@ export class OwnerResolver {
    * Menyelesaikan model AI yang sah untuk bot owner saat runtime chat.
    */
   static async resolveEffectiveModel(ownerId: string): Promise<string> {
-    const DEFAULT_FALLBACK_MODEL = "reflection/beam-free";
+    const DEFAULT_FALLBACK_MODEL = "nvidia/nemotron-3.5-lightning-free";
     try {
       return await withSystemContext(async (tx) => {
         const [botConfig] = await tx<{ selected_model_id: string | null }[]>`

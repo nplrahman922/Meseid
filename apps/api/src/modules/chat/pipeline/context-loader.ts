@@ -5,11 +5,12 @@ export interface LoadedChatContext {
   botName?: string;
   customPersonaPrompt?: string;
   knowledgeBaseContext?: string;
+  responseLanguage?: string;
 }
 
 export class ContextLoader {
   /**
-   * Mengambil nama bot, persona prompt kustom, dan basis pengetahuan resmi usaha dari database PostgreSQL.
+   * Mengambil nama bot, persona prompt kustom, preferensi bahasa, dan basis pengetahuan resmi usaha dari database PostgreSQL.
    * Multi-tenant RLS compliance: query dijalankan di dalam withOwnerContext.
    */
   static async loadChatContext(
@@ -19,6 +20,7 @@ export class ContextLoader {
     let botName: string | undefined;
     let customPersonaPrompt: string | undefined;
     let knowledgeBaseContext: string | undefined;
+    let responseLanguage: string | undefined;
 
     await withOwnerContext(owner.owner_id, owner.user_id, async (tx) => {
       const [botConfig] = await tx<{
@@ -26,8 +28,11 @@ export class ContextLoader {
         admin_bot_name: string | null;
         admin_persona_prompt: string | null;
         assistant_persona_prompt: string | null;
+        admin_language: string | null;
+        assistant_language: string | null;
       }[]>`
-        SELECT assistant_bot_name, admin_bot_name, admin_persona_prompt, assistant_persona_prompt
+        SELECT assistant_bot_name, admin_bot_name, admin_persona_prompt, assistant_persona_prompt,
+               admin_language, assistant_language
         FROM bot_configs
         WHERE owner_id = ${owner.owner_id}::uuid
         LIMIT 1;
@@ -40,6 +45,9 @@ export class ContextLoader {
         customPersonaPrompt = isOwner
           ? botConfig.assistant_persona_prompt || undefined
           : botConfig.admin_persona_prompt || undefined;
+        responseLanguage = isOwner
+          ? botConfig.assistant_language || "auto"
+          : botConfig.admin_language || "auto";
       }
 
       const kbRows = await tx<{ category: string; title: string; content: string }[]>`
@@ -61,6 +69,7 @@ export class ContextLoader {
       botName,
       customPersonaPrompt,
       knowledgeBaseContext,
+      responseLanguage,
     };
   }
 }

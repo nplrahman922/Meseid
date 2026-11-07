@@ -53,6 +53,22 @@ export async function executeOnboardingTransaction(
           );
         }
 
+        if (bot.channel === "telegram") {
+          // Bersihkan row duplikat telegram lama (misal yang hanya nomor botId) untuk owner ini
+          await tx`
+            DELETE FROM channel_connections
+            WHERE owner_id = ${ownerId}::uuid
+              AND channel = 'telegram'
+              AND external_account_id != ${cleanAccountId};
+          `;
+        }
+
+        // Tentukan session_ref terisolasi per owner
+        const resolvedSessionRef =
+          bot.channel === "whatsapp"
+            ? (bot.sessionRef && bot.sessionRef !== "default" ? bot.sessionRef : `owner_${ownerId.replace(/-/g, "_")}`)
+            : (bot.sessionRef || null);
+
         await tx`
           INSERT INTO channel_connections (
             owner_id,
@@ -66,11 +82,11 @@ export async function executeOnboardingTransaction(
             ${bot.channel},
             ${cleanAccountId},
             'connected',
-            ${bot.sessionRef || null}
+            ${resolvedSessionRef}
           )
           ON CONFLICT (channel, external_account_id) DO UPDATE
           SET status = 'connected',
-              session_ref = COALESCE(${bot.sessionRef || null}, channel_connections.session_ref),
+              session_ref = COALESCE(${resolvedSessionRef}, channel_connections.session_ref),
               updated_at = now()
           WHERE channel_connections.owner_id = ${ownerId}::uuid;
         `;
@@ -101,6 +117,8 @@ export async function executeOnboardingTransaction(
 
     const adminBotName = p.botName?.trim() || "Admin Toko";
     const assistantBotName = p.assistantBotName?.trim() || "Asisten Bisnis";
+    const adminLanguage = p.storeLanguage?.trim() || "auto";
+    const assistantLanguage = p.assistantLanguage?.trim() || "auto";
 
     await tx`
       INSERT INTO bot_configs (
@@ -109,6 +127,8 @@ export async function executeOnboardingTransaction(
         assistant_bot_name,
         admin_persona_prompt,
         assistant_persona_prompt,
+        admin_language,
+        assistant_language,
         auto_reply_enabled
       )
       VALUES (
@@ -117,6 +137,8 @@ export async function executeOnboardingTransaction(
         ${assistantBotName},
         ${adminPrompt},
         ${assistantPrompt},
+        ${adminLanguage},
+        ${assistantLanguage},
         true
       )
       ON CONFLICT (owner_id) DO UPDATE
@@ -124,6 +146,8 @@ export async function executeOnboardingTransaction(
           assistant_bot_name = ${assistantBotName},
           admin_persona_prompt = ${adminPrompt},
           assistant_persona_prompt = ${assistantPrompt},
+          admin_language = ${adminLanguage},
+          assistant_language = ${assistantLanguage},
           auto_reply_enabled = true,
           updated_at = now();
     `;

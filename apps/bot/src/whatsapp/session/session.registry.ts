@@ -9,20 +9,18 @@ export class WhatsAppSessionRegistry {
   }
 
   get(sessionId?: string): WhatsAppSessionEntry | undefined {
-    if (sessionId && this.sessions.has(sessionId)) {
+    if (!sessionId) {
+      return undefined;
+    }
+
+    if (this.sessions.has(sessionId)) {
       return this.sessions.get(sessionId);
     }
 
-    if (sessionId) {
-      for (const entry of this.sessions.values()) {
-        if (entry.phoneNumber === sessionId) {
-          return entry;
-        }
+    for (const entry of this.sessions.values()) {
+      if (entry.phoneNumber === sessionId) {
+        return entry;
       }
-    }
-
-    if (this.sessions.size === 1) {
-      return this.sessions.values().next().value;
     }
 
     return undefined;

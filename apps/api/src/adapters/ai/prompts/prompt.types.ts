@@ -8,6 +8,7 @@ export interface PromptTemplateVariables {
   customPersonaPrompt: string;
   knowledgeBaseContext: string;
   memoryDigest: string;
+  languageDirective: string;
   nowWib: string;
 }
 

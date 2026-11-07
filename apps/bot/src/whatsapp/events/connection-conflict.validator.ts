@@ -17,6 +17,11 @@ export async function validateConnectionConflict(
   ownerId?: string
 ): Promise<ConnectionConflictValidation> {
   const cleanPhone = phone.replace(/[^0-9]/g, '');
+  const resolvedOwnerId =
+    ownerId ||
+    (sessionId.startsWith('owner_')
+      ? sessionId.replace(/^owner_/, '').replace(/_/g, '-')
+      : undefined);
 
   // 1. Cek duplikasi di level in-memory session registry (pada instance Bot Gateway yang sama)
   for (const otherSession of sessionRegistry.getAll().values()) {
@@ -26,6 +31,24 @@ export async function validateConnectionConflict(
       otherSession.phoneNumber &&
       otherSession.phoneNumber.replace(/[^0-9]/g, '') === cleanPhone
     ) {
+      const otherOwnerId =
+        otherSession.config?.ownerId ||
+        (otherSession.sessionId.startsWith('owner_')
+          ? otherSession.sessionId.replace(/^owner_/, '').replace(/_/g, '-')
+          : undefined);
+
+      // Jika sesi lain milik owner yang sama (misal reconnect sesi baru), hentikan sesi lama
+      if (resolvedOwnerId && otherOwnerId && resolvedOwnerId === otherOwnerId) {
+        whatsappLogger.info(
+          `Menggantikan sesi lama '${otherSession.sessionId}' untuk owner yang sama '${resolvedOwnerId}'`
+        );
+        try {
+          otherSession.sock.end(undefined);
+        } catch {}
+        sessionRegistry.delete(otherSession.sessionId);
+        continue;
+      }
+
       whatsappLogger.warn(
         `Konflik in-memory: Nomor ${cleanPhone} sudah aktif pada sesi '${otherSession.sessionId}'`
       );
@@ -38,7 +61,7 @@ export async function validateConnectionConflict(
 
   // 2. Cek duplikasi di level database PostgreSQL melalui Backend API
   try {
-    const apiCheck = await apiClient.checkChannelConflict(cleanPhone, sessionId, ownerId);
+    const apiCheck = await apiClient.checkChannelConflict(cleanPhone, sessionId, resolvedOwnerId);
     if (apiCheck.isConflict) {
       whatsappLogger.warn(
         `Konflik database: Nomor ${cleanPhone} sudah terdaftar pada Owner ID '${apiCheck.existingOwnerId}'`

@@ -11,11 +11,36 @@ import {
  * Controller for GET /api/bot/whatsapp/status
  */
 export async function getWhatsappStatusController({
-  query,
+  owner,
+  runOwnerTx,
 }: {
   query?: { sessionId?: string };
+  owner: { id: string };
+  runOwnerTx?: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 }) {
-  const sessionId = query?.sessionId || "default";
+  let sessionId = `owner_${owner.id.replace(/-/g, "_")}`;
+
+  // Jika owner telah memiliki sambungan aktif di channel_connections, utamakan session_ref tersebut
+  if (runOwnerTx) {
+    try {
+      const existing = await runOwnerTx(async (tx) => {
+        return await tx<{ session_ref: string | null }[]>`
+          SELECT session_ref FROM channel_connections
+          WHERE owner_id = ${owner.id}::uuid
+            AND channel = 'whatsapp'
+            AND status = 'connected'
+            AND session_ref IS NOT NULL
+          LIMIT 1;
+        `;
+      });
+      if (existing.length > 0 && existing[0].session_ref) {
+        sessionId = existing[0].session_ref;
+      }
+    } catch {
+      // Tetap gunakan sessionId berbasis owner
+    }
+  }
+
   const result = await getWhatsappStatus(sessionId);
   return successResponse({
     whatsapp: result,
@@ -26,14 +51,36 @@ export async function getWhatsappStatusController({
  * Controller for POST /api/bot/whatsapp/reset
  */
 export async function resetWhatsappSessionController({
-  body,
+  owner,
+  runOwnerTx,
   set,
 }: {
   body?: { sessionId?: string };
+  owner: { id: string };
+  runOwnerTx?: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
   set: { status?: number | string };
 }) {
-  const sessionId = body?.sessionId || "default";
-  const result = await resetWhatsappSession(sessionId);
+  const targetSessionId = `owner_${owner.id.replace(/-/g, "_")}`;
+
+  // Perbarui session_ref di database jika owner mereset sesi
+  if (runOwnerTx) {
+    try {
+      await runOwnerTx(async (tx) => {
+        await tx`
+          UPDATE channel_connections
+          SET session_ref = ${targetSessionId},
+              status = 'disconnected',
+              updated_at = now()
+          WHERE owner_id = ${owner.id}::uuid
+            AND channel = 'whatsapp';
+        `;
+      });
+    } catch {
+      // Abaikan jika belum ada row di channel_connections
+    }
+  }
+
+  const result = await resetWhatsappSession(targetSessionId);
   if (!result.success) {
     set.status = 500;
     return {
@@ -42,7 +89,13 @@ export async function resetWhatsappSessionController({
       message: result.error || "Gagal mereset sesi WhatsApp.",
     };
   }
-  return successResponse(result, "Sesi WhatsApp berhasil direset.");
+  return successResponse(
+    {
+      sessionStatus: result.status || "connecting",
+      sessionId: targetSessionId,
+    },
+    "Sesi WhatsApp berhasil direset. Silakan pindai QR Code."
+  );
 }
 
 /**
@@ -73,9 +126,18 @@ export async function verifyTelegramTokenController({
     };
   }
 
-  // Ikat botId ke owner di channel_connections agar /otp dapat langsung mengidentifikasi pemilik
+  // Ikat token Telegram lengkap & botId ke owner di channel_connections
   if (result.botId && owner?.id) {
+    const cleanToken = body.token.trim();
     await runOwnerTx(async (tx) => {
+      // Bersihkan entri duplikat lama (misal yang hanya nomor botId) untuk owner ini
+      await tx`
+        DELETE FROM channel_connections
+        WHERE owner_id = ${owner.id}::uuid
+          AND channel = 'telegram'
+          AND external_account_id != ${cleanToken};
+      `;
+
       await tx`
         INSERT INTO channel_connections (
           owner_id,
@@ -87,13 +149,14 @@ export async function verifyTelegramTokenController({
         VALUES (
           ${owner.id}::uuid,
           'telegram',
-          ${result.botId},
+          ${cleanToken},
           'connected',
           ${`session_tg_${result.botId}`}
         )
         ON CONFLICT (channel, external_account_id)
         DO UPDATE SET
           owner_id = ${owner.id}::uuid,
+          session_ref = ${`session_tg_${result.botId}`},
           status = 'connected',
           updated_at = now();
       `;

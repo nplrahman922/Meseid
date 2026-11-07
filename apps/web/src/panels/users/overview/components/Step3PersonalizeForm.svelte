@@ -6,6 +6,7 @@
 		initialBotName?: string;
 		initialSpeakingStyles?: string[];
 		initialCustomRules?: string[];
+		initialLanguage?: string;
 		showSubmitButton?: boolean;
 		onBack: () => void;
 		onNext: () => void;
@@ -13,6 +14,7 @@
 			botName: string;
 			speakingStyles: string[];
 			customRules: string[];
+			language: string;
 		}) => void;
 	}
 
@@ -21,6 +23,7 @@
 		initialBotName = '',
 		initialSpeakingStyles = ['Ramah', 'Informatif'],
 		initialCustomRules = [],
+		initialLanguage = '',
 		showSubmitButton = true,
 		onBack,
 		onNext,
@@ -32,6 +35,7 @@
 	let speakingStyles = $state<string[]>([]);
 	let customRules = $state<string[]>([]);
 	let isCustomRulesEnabled = $state(true);
+	let language = $state('');
 
 	// Input penambah baru
 	let newStyleInput = $state('');
@@ -50,6 +54,11 @@
 			botName = initialBotName;
 			hasSynced = true;
 		}
+		if (initialLanguage && initialLanguage.trim().toLowerCase() !== 'auto') {
+			language = initialLanguage.trim();
+		} else {
+			language = '';
+		}
 		speakingStyles = initialSpeakingStyles.length > 0
 			? [...initialSpeakingStyles]
 			: ['Ramah', 'Informatif'];
@@ -61,6 +70,11 @@
 	$effect(() => {
 		if (!hasSynced && initialBotName) {
 			botName = initialBotName;
+			if (initialLanguage && initialLanguage.trim().toLowerCase() !== 'auto') {
+				language = initialLanguage.trim();
+			} else {
+				language = '';
+			}
 			if (initialSpeakingStyles && initialSpeakingStyles.length > 0) {
 				speakingStyles = [...initialSpeakingStyles];
 			}
@@ -127,7 +141,8 @@
 		onSubmitDraft({
 			botName: botName.trim(),
 			speakingStyles,
-			customRules: isCustomRulesEnabled ? customRules : []
+			customRules: isCustomRulesEnabled ? customRules : [],
+			language: language.trim() || 'auto'
 		});
 	}
 
@@ -163,6 +178,24 @@
 				placeholder={type === 'store' ? 'Bot Admin Name : ...' : 'Bot Name : ...'}
 				class="w-full bg-transparent text-base sm:text-lg font-intel text-[#111111] placeholder:text-neutral-500 border-0 border-none outline-none focus:outline-none focus:ring-0 focus:border-transparent"
 			/>
+		</div>
+	</div>
+
+	<!-- Input Pill: Bot Response Language (Free-Form) -->
+	<div class="w-full max-w-lg sm:max-w-xl px-2 sm:px-0 mb-6 sm:mb-8">
+		<div class="flex flex-col gap-1.5 w-full">
+			<div class="flex items-center w-full rounded-2xl border border-neutral-300 bg-white px-6 py-4 shadow-xs transition-all focus-within:border-[#5FD068] focus-within:ring-2 focus-within:ring-[#5FD068]/20">
+				<input
+					type="text"
+					bind:value={language}
+					oninput={triggerDraftSave}
+					placeholder="Bot Response Language : ... (Biarkan kosong untuk otomatis)"
+					class="w-full bg-transparent text-sm sm:text-base font-intel text-[#111111] placeholder:text-neutral-500 border-0 border-none outline-none focus:outline-none focus:ring-0 focus:border-transparent"
+				/>
+			</div>
+			<p class="text-xs text-neutral-400 px-3 font-intel">
+				* Bebas diisi bahasa/gaya tutur apa pun (misal: "Bahasa Jepang", "Campur gaya Jaksel", "English") atau kosongkan untuk otomatis ikuti penanya.
+			</p>
 		</div>
 	</div>
 
@@ -208,7 +241,7 @@
 				<input
 					type="text"
 					bind:value={newStyleInput}
-					placeholder="Type your Custom Rules bot..."
+					placeholder="Type your Speaking Style bot..."
 					onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addSpeakingStyle())}
 					class="w-full bg-transparent text-sm sm:text-base font-intel text-[#111111] placeholder:text-neutral-400 border-0 border-none outline-none focus:outline-none focus:ring-0 focus:border-transparent pr-8"
 				/>

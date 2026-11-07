@@ -20,7 +20,7 @@ export async function generateTelegramOtp(
 ): Promise<GenerateTelegramOtpResult> {
   // 1. Temukan owner yang memiliki bot Telegram ini
   const cleanBotId = botId.trim();
-  let [connection] = await tx<{ owner_id: string }[]>`
+  const [connection] = await tx<{ owner_id: string }[]>`
     SELECT owner_id
     FROM channel_connections
     WHERE channel = 'telegram'
@@ -33,29 +33,11 @@ export async function generateTelegramOtp(
     LIMIT 1;
   `;
 
-  // Fallback tangguh: jika bot baru belum tersimpan di channel_connections (misal saat proses awal onboarding),
-  // ambil owner aktif yang paling baru berinteraksi / sedang onboarding
   if (!connection) {
-    const [fallbackOwner] = await tx<{ id: string }[]>`
-      SELECT id FROM owners
-      WHERE status = 'active'
-      ORDER BY updated_at DESC
-      LIMIT 1;
-    `;
-
-    if (fallbackOwner) {
-      connection = { owner_id: fallbackOwner.id };
-      botOtpLogger.info(
-        `Bot ID ${cleanBotId} belum terikat permanen, menggunakan fallback owner ${fallbackOwner.id}`
-      );
-    }
-  }
-
-  if (!connection) {
-    botOtpLogger.warn(`Bot ID ${cleanBotId} not found in channel_connections or owners`);
+    botOtpLogger.warn(`Bot ID ${cleanBotId} belum terhubung di channel_connections (fail-closed)`);
     return {
       success: false,
-      error: "Bot Telegram belum terdaftar di sistem Meseid.",
+      error: "Bot Telegram belum terhubung ke toko Anda di Meseid. Silakan tautkan token bot di dashboard terlebih dahulu.",
     };
   }
 

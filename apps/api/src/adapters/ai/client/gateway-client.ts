@@ -1,5 +1,6 @@
 import { env } from '../../../config/env';
 import { createModuleLogger } from '../../../logs';
+import { AiCotCleaner } from '../sanitizer/ai-cot-cleaner';
 import type { AiChatOptions, AiChatResult, AiUsageStats } from '../types';
 
 const aiLogger = createModuleLogger('ai-gateway-client');
@@ -64,7 +65,10 @@ export async function executeChatCompletion(
     const choice = data.choices?.[0];
     let content = choice?.message?.content || '';
     if (!content && choice?.message?.reasoning) {
-      content = choice.message.reasoning;
+      const cleanedReasoning = AiCotCleaner.cleanThinkingArtifacts(choice.message.reasoning);
+      if (!AiCotCleaner.isEnglishMonologue(cleanedReasoning)) {
+        content = cleanedReasoning;
+      }
     }
     const rawUsage = data.usage || {};
 

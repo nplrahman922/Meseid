@@ -3,6 +3,11 @@ import { AiCotCleaner } from "../../../adapters/ai/sanitizer/ai-cot-cleaner";
 import { guardrailService, type GuardrailValidationResult } from "../guardrail.service";
 import { createModuleLogger } from "../../../logs";
 import type { ExtractedChatResponse } from "../../../adapters/ai/types";
+import { withSystemContext } from "../../../db/client";
+import {
+  recordUnansweredQuestionAction,
+  type RejectionReason,
+} from "../../owner/kb/actions/record-unanswered-question.action";
 
 const orchestratorLogger = createModuleLogger("discussion-orchestrator");
 
@@ -18,12 +23,25 @@ export interface DiscussionInput {
     botName: string;
     knowledgeBaseContext: string;
     customPersonaPrompt: string;
+    responseLanguage?: string;
   };
   memory: {
     memoryDigest?: string;
     recentTurns: any[];
   };
   effectiveModel: string;
+  channel?: string;
+  preset?: {
+    model_id: string;
+    temperature: number;
+    max_tokens: number;
+    confidence_threshold: number;
+    supports_vision: boolean;
+    supports_audio: boolean;
+    supports_web_search: boolean;
+    fallback_model_id: string | null;
+  };
+  attachments?: any[];
 }
 
 export interface DiscussionResult {
@@ -39,9 +57,34 @@ export interface DiscussionResult {
  * antara Generator AI dan Critic/Auditor AI sebelum balasan dikirimkan.
  */
 export class DiscussionOrchestrator {
+  private static async recordUnansweredSafely(
+    ownerId: string,
+    questionText: string,
+    options?: { channel?: string; reason?: RejectionReason }
+  ): Promise<void> {
+    try {
+      await withSystemContext(async (tx) => {
+        await recordUnansweredQuestionAction(tx, ownerId, questionText, options);
+      });
+    } catch (err: any) {
+      orchestratorLogger.warn("Gagal merekam unanswered question:", { error: err.message });
+    }
+  }
+
   static async executeDiscussionLoop(input: DiscussionInput): Promise<DiscussionResult> {
     const startTime = Date.now();
     const isCustomer = input.persona === "admin";
+    const hasPhotoAttachment = Boolean(
+      input.attachments?.some(
+        (a) => a.file_type === "photo" || a.mime_type?.startsWith("image/")
+      )
+    );
+
+    const runtimeOptions = {
+      temperature: input.preset?.temperature,
+      maxTokens: input.preset?.max_tokens,
+      attachments: input.attachments,
+    };
 
     // 1. Putaran 1: Generator AI menghasilkan Draf Awal
     let aiResult = await aiAdapter.extractChatResponse(
@@ -54,9 +97,11 @@ export class DiscussionOrchestrator {
         knowledgeBaseContext: input.chatContext.knowledgeBaseContext,
         memoryDigest: input.memory.memoryDigest,
         customPersonaPrompt: input.chatContext.customPersonaPrompt,
+        responseLanguage: input.chatContext.responseLanguage,
         recentTurns: input.memory.recentTurns,
       },
-      input.effectiveModel
+      input.effectiveModel,
+      runtimeOptions
     );
 
     let draftReply = AiCotCleaner.cleanThinkingArtifacts(aiResult.reply);
@@ -68,6 +113,8 @@ export class DiscussionOrchestrator {
       persona: input.persona,
       knowledgeBaseContext: input.chatContext.knowledgeBaseContext,
       businessName: input.owner.business_name,
+      responseLanguage: input.chatContext.responseLanguage,
+      hasPhotoAttachment,
     });
 
     // 3. Jika Auditor Menyetujui (Valid) -> Selesai dalam 1 Putaran
@@ -90,6 +137,33 @@ export class DiscussionOrchestrator {
       orchestratorLogger.info("Metode AI Diskusi: Perlindungan rahasia data pelanggan dieksekusi", {
         critique: audit.critique,
       });
+
+      // PEREKAMAN FASE 2: Penolakan Instan Keamanan / Kebocoran / Out-of-Scope
+      const reason: RejectionReason =
+        audit.violationType === "leakage"
+          ? "leakage"
+          : audit.violationType === "inappropriate"
+          ? "out_of_scope"
+          : "jailbreak";
+
+      await this.recordUnansweredSafely(input.owner.owner_id, input.userMessage, {
+        channel: input.channel,
+        reason,
+      });
+
+      return {
+        reply: audit.correctedReply,
+        aiResult,
+        audit,
+        roundsCount: 1,
+      };
+    }
+
+    // 4b. Jika Terjadi Kerusakan Format / Kebocoran CoT dan Auditor sudah memiliki perbaikan bersih
+    if (audit.actionDirective === "sanitize_clean" && audit.correctedReply && !AiCotCleaner.isEnglishMonologue(audit.correctedReply)) {
+      orchestratorLogger.info("Metode AI Diskusi: Sanitasi CoT/format berhasil dieksekusi", {
+        critique: audit.critique,
+      });
       return {
         reply: audit.correctedReply,
         aiResult,
@@ -108,7 +182,14 @@ export class DiscussionOrchestrator {
       }
     );
 
-    const critiquePrompt = `${input.userMessage}\n\n[Instruksi Revisi: Jawab langsung permintaan pengguna di atas secara ramah, lengkap, dan rapi dalam Bahasa Indonesia. Catatan perbaikan: ${audit.critique}. DILARANG menyertakan proses berpikir bahasa Inggris atau mengulang teks instruksi ini.]`;
+    const langInstruction = input.chatContext.responseLanguage && input.chatContext.responseLanguage !== "auto"
+      ? `dalam format/bahasa: ${input.chatContext.responseLanguage}`
+      : "sesuai bahasa/dialek penanya";
+
+    const isFreeTier = input.effectiveModel.includes("free") || input.effectiveModel.includes("nemotron");
+    const critiquePrompt = isFreeTier
+      ? `${input.userMessage}\n\n(Catatan: Berikan jawaban langsung ${langInstruction} yang santun, tanpa proses berpikir)`
+      : `${input.userMessage}\n\n[Instruksi Revisi: Jawab langsung permintaan pengguna di atas secara ramah, lengkap, dan rapi ${langInstruction}. Catatan perbaikan: ${audit.critique}. DILARANG menyertakan proses berpikir internal atau mengulang teks instruksi ini.]`;
 
     try {
       const refinedResult = await aiAdapter.extractChatResponse(
@@ -120,9 +201,11 @@ export class DiscussionOrchestrator {
           botName: input.chatContext.botName,
           knowledgeBaseContext: input.chatContext.knowledgeBaseContext,
           customPersonaPrompt: input.chatContext.customPersonaPrompt,
+          responseLanguage: input.chatContext.responseLanguage,
           recentTurns: input.memory.recentTurns,
         },
-        input.effectiveModel
+        input.effectiveModel,
+        runtimeOptions
       );
 
       let finalReply = AiCotCleaner.cleanThinkingArtifacts(refinedResult.reply);
@@ -134,6 +217,8 @@ export class DiscussionOrchestrator {
         persona: input.persona,
         knowledgeBaseContext: input.chatContext.knowledgeBaseContext,
         businessName: input.owner.business_name,
+        responseLanguage: input.chatContext.responseLanguage,
+        hasPhotoAttachment,
       });
 
       // 4A. Jika Draf 2 Lolos Audit -> Kirim Draf 2
@@ -159,6 +244,21 @@ export class DiscussionOrchestrator {
           critique: auditRound2.critique,
         }
       );
+
+      // PEREKAMAN FASE 4: Kegagalan Putaran 2 (Missing KB / Ambiguous / Fallback)
+      if (isCustomer) {
+        const reason: RejectionReason =
+          auditRound2.violationType === "hallucination"
+            ? "missing_kb"
+            : auditRound2.violationType === "leakage"
+            ? "leakage"
+            : "fallback";
+
+        await this.recordUnansweredSafely(input.owner.owner_id, input.userMessage, {
+          channel: input.channel,
+          reason,
+        });
+      }
 
       // Prioritas 1: Gunakan correctedReply dari Auditor jika ada dan bersih
       if (auditRound2.correctedReply && !AiCotCleaner.isEnglishMonologue(auditRound2.correctedReply)) {

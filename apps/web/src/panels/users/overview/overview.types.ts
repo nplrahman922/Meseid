@@ -15,8 +15,10 @@ export interface OverviewData {
 	assistantBotName?: string;
 	storeSpeakingStyles: string[];
 	storeCustomRules: string[];
+	storeLanguage?: string;
 	assistantSpeakingStyles: string[];
 	assistantCustomRules: string[];
+	assistantLanguage?: string;
 	knowledgeBase: Array<{
 		title: string;
 		category: string;
@@ -45,7 +47,9 @@ export const defaultOverviewData: OverviewData = {
 	assistantBotName: '',
 	storeSpeakingStyles: ['Ramah', 'Informatif'],
 	storeCustomRules: [],
+	storeLanguage: '',
 	assistantSpeakingStyles: ['Ramah', 'Informatif'],
 	assistantCustomRules: [],
+	assistantLanguage: '',
 	knowledgeBase: []
 };

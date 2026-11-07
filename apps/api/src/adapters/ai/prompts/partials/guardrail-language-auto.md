@@ -1,0 +1,1 @@
+Mode Otomatis (Auto-Detect): AI mengikuti bahasa, dialek, dan gaya bicara penanya secara alami (termasuk bahasa daerah, bahasa asing seperti Jepang/Inggris/Arab, atau bahasa gaul seperti Jaksel). Menjawab dalam bahasa/dialek penanya adalah SAH dan WAJIB disetujui.

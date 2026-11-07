@@ -1,5 +1,6 @@
 import { Tx } from "../../../../db/client";
 import { OnboardingDetailResult } from "../onboarding.types";
+import { extractStyleAndRules } from "../../personalisasi/compiler/style-rules-extractor";
 
 /**
  * Operasi Query detail konfigurasi lengkap onboarding dari database untuk Pre-fill halaman Overview.
@@ -17,7 +18,8 @@ export async function getOnboardingDetail(
   `;
 
   const [botConfig] = await tx`
-    SELECT admin_bot_name, assistant_bot_name, admin_persona_prompt, assistant_persona_prompt, allowed_contacts
+    SELECT admin_bot_name, assistant_bot_name, admin_persona_prompt, assistant_persona_prompt,
+           admin_language, assistant_language, allowed_contacts
     FROM bot_configs
     WHERE owner_id = ${ownerId}::uuid;
   `;
@@ -42,21 +44,13 @@ export async function getOnboardingDetail(
   `;
 
   const hasWhatsapp = channels.some((c) => c.channel === "whatsapp");
-  const tgChannel = channels.find((c) => c.channel === "telegram");
+  const tgChannels = channels.filter((c) => c.channel === "telegram");
+  const tgChannel = tgChannels.find((c) => c.external_account_id.includes(":")) || tgChannels[0];
 
   let storeSpeakingStyles: string[] = ["Ramah", "Informatif"];
   let storeCustomRules: string[] = [];
   let assistantSpeakingStyles: string[] = ["Ramah", "Informatif"];
   let assistantCustomRules: string[] = [];
-
-  const extractStyleAndRules = (prompt?: string | null) => {
-    if (!prompt) return { styles: [], rules: [] };
-    const styleMatch = prompt.match(/Gaya Bicara:\s*([^.]+)\./i);
-    const rulesMatch = prompt.match(/Aturan Khusus:\s*([^.]+)\./i);
-    const styles = styleMatch && styleMatch[1] ? styleMatch[1].split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const rules = rulesMatch && rulesMatch[1] ? rulesMatch[1].split(";").map((r) => r.trim()).filter(Boolean) : [];
-    return { styles, rules };
-  };
 
   if (botConfig?.admin_persona_prompt) {
     const extracted = extractStyleAndRules(botConfig.admin_persona_prompt);
@@ -85,6 +79,8 @@ export async function getOnboardingDetail(
     storeCustomRules,
     assistantSpeakingStyles,
     assistantCustomRules,
+    storeLanguage: botConfig?.admin_language || "auto",
+    assistantLanguage: botConfig?.assistant_language || "auto",
     whatsappConnected: hasWhatsapp,
     telegramToken: tgChannel ? tgChannel.external_account_id : null,
     telegramVerified: Boolean(tgChannel && Array.isArray(botConfig?.allowed_contacts) && botConfig.allowed_contacts.length > 0),

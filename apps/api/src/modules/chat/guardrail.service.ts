@@ -1,5 +1,6 @@
 import { aiAdapter } from "../../adapters/ai";
 import { AiCotCleaner } from "../../adapters/ai/sanitizer/ai-cot-cleaner";
+import { PromptEngine } from "../../adapters/ai/prompts/prompt-engine";
 import { createModuleLogger } from "../../logs";
 import type { ActionDirective } from "../../adapters/ai/types";
 
@@ -11,6 +12,8 @@ export interface GuardrailValidationInput {
   persona: "admin" | "assistant";
   knowledgeBaseContext?: string;
   businessName?: string;
+  responseLanguage?: string;
+  hasPhotoAttachment?: boolean;
 }
 
 export interface GuardrailValidationResult {
@@ -36,58 +39,25 @@ export class GuardrailService {
   async validateDraftReply(input: GuardrailValidationInput): Promise<GuardrailValidationResult> {
     const startTime = Date.now();
     const isCustomer = input.persona === "admin";
+    const rawLanguage = input.responseLanguage?.trim() || "";
+    const isAutoLanguage = !rawLanguage || rawLanguage.toLowerCase() === "auto";
+    const languageDirective = isAutoLanguage
+      ? PromptEngine.loadPartial("guardrail-language-auto.md")
+      : PromptEngine.loadPartial("guardrail-language-strict.md", { allowedLanguages: rawLanguage });
 
-    const systemPrompt = `Kamu adalah Auditor AI Keamanan, Integritas Informasi, & Penasihat Respon untuk bisnis UMKM "${input.businessName || "Usaha"}".
-Tugasmu adalah memvalidasi DRAF BALASAN AI yang akan dikirimkan ke ${isCustomer ? "PELANGGAN/PEMBELI" : "PEMILIK USAHA/OWNER"}.
+    const systemPrompt = PromptEngine.loadTemplate("guardrail-auditor.system.md", {
+      businessName: input.businessName || "Usaha",
+      recipientRole: isCustomer ? "PELANGGAN/PEMBELI" : "PEMILIK USAHA/OWNER",
+      knowledgeBaseContext: input.knowledgeBaseContext || "(Tidak ada dokumen KB terlampir)",
+      languageDirective,
+    });
 
-INFORMASI RESMI KNOWLEDGE BASE:
-${input.knowledgeBaseContext || "(Tidak ada dokumen KB terlampir)"}
-
-ATURAN AUDIT KETAT BERDASARKAN PENERIMA:
-1. JIKA PENERIMA ADALAH PEMILIK USAHA/OWNER:
-   - Pemilik usaha adalah BOS dan mitra kerja utama. Pemilik BERHAK menanyakan topik apa saja: pembukuan, data rahasia internal (biaya modal kulakan, margin laba, biaya server), bantuan umum serbaguna (seperti coding Python/HTML, analisis ide, strategi bisnis), serta OBROLAN SANTAI, CANDAAN, PANTUN, PUISI, dan SAPAAN HANGAT.
-   - DILARANG KERAS menandai "inappropriate" atau "hallucination" hanya karena obrolan bersifat santai atau non-bisnis! Asisten cerdas WAJIB fleksibel, bersahabat, dan melayani candaan/pantun Owner dengan hangat.
-   - DILARANG KERAS menandai "leakage" jika penerima adalah PEMILIK USAHA/OWNER! Membuka data modal atau margin kepada bos adalah HAK pemilik usaha dan WAJIB disetujui (is_valid = true, action_directive = "approve").
-   - Selama draf tidak mengandung ujaran kebencian/SARA berat atau konten berbahaya, obrolan santai/pantun dengan Owner 100% SAH dan WAJIB disetujui (is_valid = true, action_directive = "approve").
-   - Asisten diperbolehkan memberikan saran atau asumsi di luar KB kepada Owner dengan catatan transparansi.
-2. JIKA PENERIMA ADALAH PELANGGAN/PEMBELI:
-   - HAK INFORMASI PRODUK & PRICELIST RESMI:
-     * Seluruh daftar produk, fitur, dan harga jual/pricelist yang tercantum dalam Knowledge Base resmi di atas adalah INFORMASI PUBLIK untuk pelanggan.
-     * Admin toko WAJIB dan BERHAK membagikan informasi harga jual, paket, dan rincian pricelist yang tercantum di Knowledge Base kepada pelanggan. Memberikan harga jual resmi dari Knowledge Base BUKAN kebocoran data dan WAJIB disetujui (is_valid = true, action_directive = "approve").
-   - ANTI-HALUSINASI KETAT: Draf balasan TIDAK BOLEH mengarang harga paket di luar Knowledge Base, diskon fiktif (misal diskon 90%), garansi fiktif, atau syarat yang bertentangan dengan Knowledge Base resmi (violation_type = "hallucination", action_directive = "direct_guide").
-   - ATURAN KEBOCORAN DATA RAHASIA: Dilarang keras membocorkan biaya modal kulakan/HPP, biaya server internal AWS, target margin/BEP, data keuangan rahasia perusahaan, atau SOP rahasia kepada pelanggan (violation_type = "leakage", action_directive = "refuse_politely"). Harga jual produk resmi yang tertera di KB BUKAN data rahasia.
-   - BATASAN CAKUPAN BISNIS & ANTI OUT-OF-SCOPE (KODE / PANTUN BEBAS):
-     * Bot toko HANYA melayani pertanyaan seputar produk, harga, dan layanan bisnis resmi yang ada di Knowledge Base toko.
-     * Pelanggan DILARANG memanfaatkan bot toko untuk meminta pembuatan kode pemrograman umum (seperti Python, Rust, script), mengerjakan tugas sekolah/matematika, atau membuat pantun/puisi/lelucon di luar konteks toko, KECUALI jika layanan tersebut secara eksplisit terdaftar di Knowledge Base toko.
-     * Jika draf balasan melayani permintaan kode pemrograman umum, tugas, atau pantun yang TIDAK ADA di Knowledge Base toko kepada pelanggan: is_valid = false (violation_type = "inappropriate", action_directive = "refuse_politely"), berikan critique jelas dan corrected_reply berupa penolakan santun yang mengarahkan kembali ke layanan resmi toko.
-3. KESESUAIAN PERTANYAAN: Draf balasan harus relevan dan menjawab pertanyaan pengguna secara sopan.
-4. INTEGRITAS FORMAT & ANTI-CORRUPTED JSON: Draf balasan harus berupa teks percakapan alami manusia yang siap dikirim. Draf TIDAK BOLEH mengandung sintaks mentah JSON seperti '{"reply":', kurung kurawal pembuka {, tanda petik JSON, atau respons terpotong. Jika draf balasan mengandung kode/sintaks JSON mentah, is_valid = false (violation_type = "corrupted", action_directive = "sanitize_clean"), dan berikan "corrected_reply" berupa teks bersih manusia tanpa kurung kurawal atau sintaks kode.
-5. ANTI-COT & BAHASA KOMUNIKASI: Draf balasan WAJIB berupa kalimat percakapan langsung kepada pengguna dalam Bahasa Indonesia. Draf DILARANG KERAS berupa monolog proses berpikir internal (Chain-of-Thought) dalam bahasa Inggris atau refleksi diri model (misalnya diawali "The user...", "He wants me to...", "I need to balance...", "Write a new reply...", dll.). Jika draf berupa monolog atau berbahasa Inggris alih-alih menyapa langsung pengguna, is_valid = false (violation_type = "corrupted", action_directive = "sanitize_clean"), dan berikan "corrected_reply" bahasa Indonesia yang langsung menjawab pengguna.
-
-KLASIFIKASI "action_directive":
-- "approve": Draf balasan sudah aman, benar, dan sopan (is_valid = true).
-- "apologize": Draf gagal atau informasi yang dicari belum tersedia di sistem/KB, instruksikan meminta maaf secara santun.
-- "refuse_politely": Draf melanggar kerahasiaan data internal ke pelanggan, tolak secara sopan dan lindungi data rahasia. PENTING: Pada corrected_reply JANGAN PERNAH menyebutkan angka atau nominal atau rincian rahasia yang bocor! Cukup nyatakan dengan sopan bahwa informasi internal tersebut bersifat rahasia dan tidak dapat dibagikan.
-- "clarify": Pertanyaan pengguna terlalu ambigu, instruksikan menanyakan detail lebih lanjut.
-- "direct_guide": Draf mengarang harga/fitur, arahkan ke daftar paket resmi yang tercantum di Knowledge Base.
-- "sanitize_clean": Draf rusak akibat format JSON mentah/terpotong, bersihkan ke teks percakapan alami.
-
-KEMBALIKAN HANYA SATU OBJEK JSON MURNI tanpa markdown apapun dengan format:
-{
-  "is_valid": true,
-  "confidence_score": 0.95,
-  "violation_type": null,
-  "action_directive": "approve",
-  "critique": "Draf balasan akurat dan sopan.",
-  "reason": "Penjelasan singkat hasil audit",
-  "corrected_reply": null
-}
-
-CATATAN:
-- Jika is_valid adalah false karena ada pelanggaran, sertakan "violation_type" ("hallucination", "leakage", "inappropriate", atau "corrupted"), tentukan "action_directive", tuliskan "critique" (evaluasi kekurangan draf), serta susun "corrected_reply" konsensus terbaik yang ramah dan siap dikirim ke pengguna.
-- Jika draf balasan sudah aman dan benar, is_valid = true, violation_type = null, action_directive = "approve", critique = "Lolos validasi", dan corrected_reply = null.`;
+    const photoContextNote = input.hasPhotoAttachment
+      ? "\nCATATAN LAMPIRAN: Pengguna menyertakan foto visual / gambar objek."
+      : "";
 
     const userAuditPrompt = `TARGET PENERIMA BALASAN: ${isCustomer ? "PELANGGAN / PEMBELI (Wajib proteksi kebocoran data internal)" : "PEMILIK USAHA / OWNER (BOS berhak tahu modal, keuangan, dan margin)"}
+PREFERENSI BAHASA: ${isAutoLanguage ? "auto (mengikuti bahasa penanya)" : rawLanguage}${photoContextNote}
 
 PERTANYAAN PENGGUNA:
 "${input.userMessage}"
@@ -208,11 +178,24 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
           }
         }
 
+        // Proteksi Mutlak: Jika draf mengandung kebocoran CoT/meta-reasoning bahasa Inggris,
+        // DILARANG KERAS disetujui (walaupun penerima adalah Owner)!
+        const hasRemainingCot = AiCotCleaner.isEnglishMonologue(input.draftReply) ||
+          /\b(?:There's also a "RAHASIA"|looking at the prompt structure|Wait, actually looking|Let me re-read the actual)\b/i.test(input.draftReply);
+
+        if (hasRemainingCot) {
+          isValid = false;
+          violationType = "corrupted";
+          actionDirective = "sanitize_clean";
+          critique = "Draf mengandung monolog proses berpikir (CoT) dalam bahasa Inggris.";
+          correctedReply = AiCotCleaner.cleanThinkingArtifacts(input.draftReply);
+        }
+
         // Lindungi harga jual resmi pelanggan dari false-positive leakage:
         if (isCustomer && violationType === "leakage") {
-          const isTrueInternalLeakage = /aws|server internal|kulakan|margin laba|bep|modal dapur|rekening pribadi/i.test(input.draftReply);
+          const isTrueInternalLeakage = /aws|server internal|kulakan|margin|bep|modal|pasar andir|14\.000|brankas|882911|rekening pribadi/i.test(input.draftReply);
           const hasPricelistContext = Boolean(input.knowledgeBaseContext && /harga|pricelist|paket|500k|99\.000/i.test(input.knowledgeBaseContext));
-          if (!isTrueInternalLeakage && hasPricelistContext && /harga|pricelist|biaya|paket|layanan/i.test(input.userMessage)) {
+          if (!isTrueInternalLeakage && hasPricelistContext && /harga|pricelist|biaya|paket|layanan|price|pricing|cost|plan|package|いくら|価格|料金|プラン/i.test(input.userMessage)) {
             isValid = true;
             violationType = null;
             actionDirective = "approve";

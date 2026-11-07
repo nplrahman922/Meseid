@@ -92,7 +92,7 @@
 		}
 
 		try {
-			const res = await fetchWhatsappStatus('default');
+			const res = await fetchWhatsappStatus();
 			if (res.success && res.status === 'open') {
 				whatsappConnected = true;
 				notifyUpdate();

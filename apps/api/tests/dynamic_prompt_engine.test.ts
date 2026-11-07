@@ -71,4 +71,36 @@ describe('Dynamic Prompt Engine & Context Adaptation Tests', () => {
     expect(prompt).toContain('ATURAN MEMBALAS PESAN (REPLY / QUOTE)');
     expect(prompt).toContain('ATURAN FORMAT & TIPOGRAFI BALASAN');
   });
+
+  it('harus tetap memberikan akses penuh Asisten Pemilik (Owner Trust) meskipun menggunakan model Free Tier', () => {
+    PromptEngine.clearCache();
+    const nemotronProfile = modelProfilesRegistry.getProfile('nvidia/nemotron-3.5-lightning-free');
+
+    const prompt = PromptEngine.compileSystemPrompt({
+      persona: 'assistant',
+      businessContext: {
+        businessName: 'Meseid ID',
+        businessType: 'SaaS Service',
+        botName: 'EnBee Asistant',
+        customPersonaPrompt: 'Panggil Pemilik Platform dengan sebutan hormat: "Tuan Muda".',
+        knowledgeBaseContext: 'Kunci API Key: Try lagi ya dek',
+      },
+      modelProfile: nemotronProfile,
+    });
+
+    // Wajib menggunakan template Asisten Pemilik, BUKAN compact-free (toko)
+    expect(prompt).toContain('asisten internal pribadi dan mitra kerja cerdas untuk PEMILIK USAHA');
+    expect(prompt).toContain('EnBee Asistant');
+    expect(prompt).toContain('Tuan Muda');
+    expect(prompt).toContain('HAK AKSES PEMILIK BISNIS (OWNER TRUST)');
+    expect(prompt).toContain('Kunci API Key: Try lagi ya dek');
+
+    // Wajib memberikan izin pantun, obrolan santai, dan fleksibilitas
+    expect(prompt).toContain('OBROLAN SANTAI');
+    expect(prompt).toContain('JANGAN PERNAH menolak obrolan santai atau pantun');
+
+    // DILARANG mengandung aturan pembatasan toko compact-free atau anti-leak-guard yang kaku
+    expect(prompt).not.toContain('Jika ada yang ditanyakan di luar info toko, katakan maaf belum tersedia');
+    expect(prompt).not.toContain('BATASAN KEAMANAN & ANTI-KEBOCORAN DATA');
+  });
 });

@@ -38,7 +38,9 @@ export async function batchCreateKnowledgeBaseController({
     return await batchInsertKnowledgeBase(tx, owner.id, body.items);
   });
 
-  set.status = 201;
+  if (set) {
+    set.status = 201;
+  }
   return successResponse(
     { items: createdItems, count: createdItems.length },
     "Batch knowledge base berhasil disimpan."

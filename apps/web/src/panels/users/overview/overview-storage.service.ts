@@ -70,8 +70,10 @@ export function getOverviewDraft(): OverviewData {
 			...parsed,
 			storeSpeakingStyles: parsed.storeSpeakingStyles || defaultOverviewData.storeSpeakingStyles,
 			storeCustomRules: parsed.storeCustomRules || defaultOverviewData.storeCustomRules,
+			storeLanguage: parsed.storeLanguage || '',
 			assistantSpeakingStyles: parsed.assistantSpeakingStyles || defaultOverviewData.assistantSpeakingStyles,
 			assistantCustomRules: parsed.assistantCustomRules || defaultOverviewData.assistantCustomRules,
+			assistantLanguage: parsed.assistantLanguage || '',
 		};
 	} catch (e) {
 		console.warn('Gagal mengambil draft overview:', e);

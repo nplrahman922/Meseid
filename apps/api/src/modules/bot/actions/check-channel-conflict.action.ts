@@ -27,9 +27,17 @@ export async function checkChannelConflict(
     return { isConflict: false };
   }
 
-  // Cari apakah ada koneksi aktif untuk nomor ini
+  // 1. Urai owner ID dari sessionId jika belum disertakan (format: owner_<owner_id>)
+  const resolvedOwnerId =
+    currentOwnerId ||
+    (sessionId?.startsWith("owner_")
+      ? sessionId.replace(/^owner_/, "").replace(/_/g, "-")
+      : undefined);
+
+  // Cari apakah ada data koneksi untuk nomor ini
   const rows = await tx<
     {
+      id: string;
       owner_id: string;
       session_ref: string | null;
       status: string;
@@ -37,6 +45,7 @@ export async function checkChannelConflict(
     }[]
   >`
     SELECT 
+      cc.id,
       cc.owner_id,
       cc.session_ref,
       cc.status,
@@ -48,24 +57,45 @@ export async function checkChannelConflict(
         cc.external_account_id = ${cleanId}
         OR cc.external_account_id = ${cleanId + '@s.whatsapp.net'}
       )
-      AND cc.status = 'connected'
       AND o.status = 'active'
     LIMIT 1;
   `;
 
   if (rows.length === 0) {
+    // Nomor baru belum pernah terdaftar: daftarkan langsung jika ada owner yang sah
+    if (resolvedOwnerId) {
+      await tx`
+        INSERT INTO channel_connections (owner_id, channel, external_account_id, session_ref, status)
+        VALUES (${resolvedOwnerId}::uuid, ${channel}, ${cleanId}, ${sessionId || null}, 'connected')
+        ON CONFLICT (channel, external_account_id)
+        DO UPDATE SET status = 'connected', session_ref = EXCLUDED.session_ref, updated_at = now();
+      `;
+    }
     return { isConflict: false };
   }
 
   const existing = rows[0];
 
-  // Jika owner ID sama, bukan konflik (pemilik sedang re-scan atau reconnect bot-nya sendiri)
-  if (currentOwnerId && existing.owner_id === currentOwnerId) {
+  // 2. Jika nomor dimiliki oleh owner yang sama -> Reconnect sah dari pemilik akun
+  if (resolvedOwnerId && existing.owner_id === resolvedOwnerId) {
+    await tx`
+      UPDATE channel_connections
+      SET session_ref = COALESCE(${sessionId}, session_ref),
+          status = 'connected',
+          updated_at = now()
+      WHERE id = ${existing.id}::uuid;
+    `;
     return { isConflict: false };
   }
 
-  // Jika session_ref sama persis, bukan konflik (sesi yang sama sedang refresh)
+  // 3. Jika session_ref cocok persis dengan sesi yang terdaftar
   if (sessionId && existing.session_ref === sessionId) {
+    await tx`
+      UPDATE channel_connections
+      SET status = 'connected',
+          updated_at = now()
+      WHERE id = ${existing.id}::uuid;
+    `;
     return { isConflict: false };
   }
 

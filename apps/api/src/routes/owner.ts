@@ -7,14 +7,22 @@ import {
   getPersonalisasiController,
   updatePersonalisasiController,
   getAvailableBotModelsController,
+  simulatePersonaChatController,
   listKnowledgeBaseController,
   createKnowledgeBaseController,
   batchCreateKnowledgeBaseController,
   updateKnowledgeBaseController,
   deleteKnowledgeBaseController,
+  listUnansweredQuestionsController,
+  resolveUnansweredQuestionController,
   submitOnboardingController,
   getOnboardingStatusController,
   getOnboardingDetailController,
+  listAccessRulesController,
+  upsertAccessRuleController,
+  toggleGlobalAccessController,
+  analyzeContactBehaviorController,
+  getKanalStatusController,
 } from "../modules/owner";
 
 export const ownerRoutes = new Elysia()
@@ -74,12 +82,30 @@ export const ownerRoutes = new Elysia()
         assistant_persona_prompt: t.Optional(t.String()),
         speaking_styles: t.Optional(t.Array(t.String())),
         custom_rules: t.Optional(t.Array(t.String())),
+        assistant_speaking_styles: t.Optional(t.Array(t.String())),
+        assistant_custom_rules: t.Optional(t.Array(t.String())),
+        admin_language: t.Optional(t.String()),
+        assistant_language: t.Optional(t.String()),
         selected_model_id: t.Optional(t.String()),
+        assistant_model_id: t.Optional(t.String()),
+        admin_model_id: t.Optional(t.String()),
         customer_access_mode: t.Optional(t.Union([t.Literal("open"), t.Literal("whitelist")])),
         allowed_contacts: t.Optional(t.Any()),
         allowed_groups: t.Optional(t.Any()),
         auto_reply_enabled: t.Optional(t.Boolean()),
         business_hours: t.Optional(t.Any()),
+      }),
+    }
+  )
+
+  // POST /api/owner/personalisasi/simulate
+  .post(
+    "/personalisasi/simulate",
+    simulatePersonaChatController,
+    {
+      body: t.Object({
+        persona: t.Union([t.Literal("assistant"), t.Literal("admin")]),
+        message: t.String(),
       }),
     }
   )
@@ -128,6 +154,33 @@ export const ownerRoutes = new Elysia()
           })
         ),
       }),
+    }
+  )
+
+  // GET /api/owner/kb/unanswered
+  .get(
+    "/kb/unanswered",
+    listUnansweredQuestionsController,
+    {
+      query: t.Object({
+        resolved: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // PUT /api/owner/kb/unanswered/:id/resolve
+  .put(
+    "/kb/unanswered/:id/resolve",
+    resolveUnansweredQuestionController,
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+      body: t.Optional(
+        t.Object({
+          resolved_by_kb_id: t.Optional(t.String()),
+        })
+      ),
     }
   )
 
@@ -197,6 +250,8 @@ export const ownerRoutes = new Elysia()
             customRules: t.Optional(t.Array(t.String())),
             assistantSpeakingStyles: t.Optional(t.Array(t.String())),
             assistantCustomRules: t.Optional(t.Array(t.String())),
+            storeLanguage: t.Optional(t.String()),
+            assistantLanguage: t.Optional(t.String()),
             adminPersonaPrompt: t.Optional(t.String()),
             assistantPersonaPrompt: t.Optional(t.String()),
           })
@@ -219,6 +274,60 @@ export const ownerRoutes = new Elysia()
   .get("/onboarding-status", getOnboardingStatusController)
 
   // GET /api/owner/onboarding-detail (Pre-fill Overview UI)
-  .get("/onboarding-detail", getOnboardingDetailController);
+  .get("/onboarding-detail", getOnboardingDetailController)
+  // GET /api/owner/onboarding/detail (Alias URL)
+  .get("/onboarding/detail", getOnboardingDetailController)
+
+  // ==========================================
+  // 5. Kanal & Access Control Sub-Module
+  // ==========================================
+  // GET /api/owner/kanal/status
+  .get("/kanal/status", getKanalStatusController)
+
+  // GET /api/owner/kanal/access-rules
+  .get("/kanal/access-rules", listAccessRulesController)
+
+  // PUT /api/owner/kanal/access-rules
+  .put(
+    "/kanal/access-rules",
+    upsertAccessRuleController,
+    {
+      body: t.Object({
+        channel: t.Union([t.Literal("whatsapp"), t.Literal("telegram")]),
+        target_type: t.Union([t.Literal("number"), t.Literal("group")]),
+        target_id: t.String(),
+        target_name: t.Optional(t.String()),
+        custom_label: t.Optional(t.String()),
+        status: t.Optional(t.Union([t.Literal("active"), t.Literal("disabled"), t.Literal("blocked")])),
+        persona_mode: t.Optional(t.Union([t.Literal("assistant"), t.Literal("admin")])),
+        trigger_mode: t.Optional(t.Union([t.Literal("mention_or_reply"), t.Literal("always")])),
+      }),
+    }
+  )
+
+  // PUT /api/owner/kanal/global-access
+  .put(
+    "/kanal/global-access",
+    toggleGlobalAccessController,
+    {
+      body: t.Object({
+        mode: t.Union([t.Literal("open"), t.Literal("whitelist")]),
+      }),
+    }
+  )
+
+  // POST /api/owner/kanal/analyze-behavior
+  .post(
+    "/kanal/analyze-behavior",
+    analyzeContactBehaviorController,
+    {
+      body: t.Object({
+        channel: t.Union([t.Literal("whatsapp"), t.Literal("telegram")]),
+        target_id: t.String(),
+        target_type: t.Optional(t.Union([t.Literal("number"), t.Literal("group")])),
+        model_id: t.Optional(t.String()),
+      }),
+    }
+  );
 
 export const ownerProfileRoutes = ownerRoutes;

@@ -66,6 +66,40 @@ export async function verifyTelegramOtp(
     WHERE owner_id = ${ownerId}::uuid;
   `;
 
+  // 3. Sinkronisasi ke channel_access_rules agar Telegram owner langsung memiliki akses asisten
+  await tx`
+    INSERT INTO channel_access_rules (
+      owner_id,
+      channel,
+      target_type,
+      target_id,
+      target_name,
+      custom_label,
+      status,
+      persona_mode,
+      trigger_mode,
+      behavior_summary
+    )
+    VALUES (
+      ${ownerId}::uuid,
+      'telegram',
+      'number',
+      ${row.target_external_id},
+      'Owner Telegram',
+      'Owner / Pemilik',
+      'active',
+      'assistant',
+      'always',
+      'Akun Telegram terverifikasi milik pemilik toko via perintah /otp.'
+    )
+    ON CONFLICT (owner_id, channel, target_id)
+    DO UPDATE SET
+      persona_mode = 'assistant',
+      custom_label = 'Owner / Pemilik',
+      status = 'active',
+      updated_at = now();
+  `;
+
   botOtpLogger.info(`Telegram chat_id ${row.target_external_id} successfully linked to owner ${ownerId}`);
 
   return {

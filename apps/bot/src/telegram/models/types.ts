@@ -12,7 +12,7 @@ export interface InboundMessagePayload {
   sender_username?: string;
   chat_id: string;
   chat_type: 'private' | 'group' | 'supergroup' | 'channel';
-  message_type: 'text' | 'photo' | 'document' | 'callback';
+  message_type: 'text' | 'photo' | 'document' | 'callback' | 'audio';
   text?: string;
   quoted_text?: string;
   callback_data?: string;
@@ -21,6 +21,7 @@ export interface InboundMessagePayload {
     file_type: string;
     mime_type?: string;
     file_size?: number;
+    data_base64?: string;
   }>;
   timestamp: number;
 }

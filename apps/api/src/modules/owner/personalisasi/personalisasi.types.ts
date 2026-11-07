@@ -14,10 +14,14 @@ export interface BotConfigRecord {
   owner_id: string;
   assistant_bot_name: string;
   assistant_persona_prompt: string | null;
+  assistant_language?: string;
   admin_bot_name: string;
   admin_persona_prompt: string | null;
+  admin_language?: string;
   persona_prompt: string | null;
   selected_model_id: string | null;
+  assistant_model_id?: string | null;
+  admin_model_id?: string | null;
   customer_access_mode: string;
   allowed_contacts: any;
   allowed_groups: any;
@@ -27,13 +31,24 @@ export interface BotConfigRecord {
   updated_at: Date;
 }
 
+export interface EnrichedBotConfigRecord extends BotConfigRecord {
+  assistant_speaking_styles: string[];
+  assistant_custom_rules: string[];
+  admin_speaking_styles: string[];
+  admin_custom_rules: string[];
+}
+
 export interface UpdatePersonalisasiInput {
   admin_bot_name?: string;
   assistant_bot_name?: string;
   admin_persona_prompt?: string | null;
   assistant_persona_prompt?: string | null;
+  admin_language?: string;
+  assistant_language?: string;
   persona_prompt?: string | null;
   selected_model_id?: string | null;
+  assistant_model_id?: string | null;
+  admin_model_id?: string | null;
   customer_access_mode?: "open" | "whitelist";
   allowed_contacts?: any;
   allowed_groups?: any;

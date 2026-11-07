@@ -6,10 +6,10 @@ import type {
 } from './models/types';
 
 /**
- * Memulai layanan modul WhatsApp Baileys (menginisialisasi sesi default jika diaktifkan).
+ * Memulai layanan modul WhatsApp Baileys (mode multi-tenant per-tenant).
  */
 export async function startWhatsAppBot(): Promise<void> {
-  console.log('[WhatsApp Module] Memulai modul WhatsApp Baileys...');
+  console.log('[WhatsApp Module] Memulai modul WhatsApp Baileys (multi-tenant on-demand)...');
   await whatsAppBotManager.initFromEnv();
 }
 

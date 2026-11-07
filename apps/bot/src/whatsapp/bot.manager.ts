@@ -22,6 +22,7 @@ export type { WhatsAppSessionEntry };
 export class WhatsAppBotManager {
   private baseSessionPath: string;
   private isShuttingDown: boolean = false;
+  private provisioningPromises = new Map<string, Promise<WASocket>>();
 
   constructor() {
     this.baseSessionPath = process.env.WA_SESSION_PATH || './data/wa-session';
@@ -132,7 +133,7 @@ export class WhatsAppBotManager {
    */
   private async reconnect(sessionId: string): Promise<void> {
     const entry = sessionRegistry.get(sessionId);
-    if (!entry) return;
+    if (!entry || entry.isDestroyed) return;
 
     whatsappLogger.info(`Mencoba reconnect WhatsApp sesi '${sessionId}' (percobaan ke-${entry.reconnectAttempts})...`, {
       action: 'reconnect_session',
@@ -140,7 +141,16 @@ export class WhatsAppBotManager {
       attempts: entry.reconnectAttempts,
     });
 
+    entry.isDestroyed = true;
+    if (entry.reconnectTimer) {
+      clearTimeout(entry.reconnectTimer);
+      entry.reconnectTimer = undefined;
+    }
+
     try {
+      entry.sock.ev.removeAllListeners('connection.update');
+      entry.sock.ev.removeAllListeners('creds.update');
+      entry.sock.ev.removeAllListeners('messages.upsert');
       entry.sock.end(undefined);
     } catch {
       // Abaikan jika sudah tertutup
@@ -151,6 +161,48 @@ export class WhatsAppBotManager {
 
   getSession(sessionId?: string): WhatsAppSessionEntry | undefined {
     return sessionRegistry.get(sessionId);
+  }
+
+  /**
+   * Mengambil sesi WhatsApp yang aktif atau menginisialisasi sesi baru on-demand (multi-tenant provisioning).
+   */
+  async getOrCreateSession(sessionId: string, ownerId?: string): Promise<WhatsAppSessionEntry> {
+    const cleanSessionId = sessionId.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const resolvedOwnerId =
+      ownerId ||
+      (cleanSessionId.startsWith('owner_')
+        ? cleanSessionId.replace(/^owner_/, '').replace(/_/g, '-')
+        : undefined);
+
+    let entry = sessionRegistry.get(cleanSessionId);
+    if (entry) return entry;
+
+    let inflight = this.provisioningPromises.get(cleanSessionId);
+    if (!inflight) {
+      inflight = (async () => {
+        whatsappLogger.info(`Inisialisasi sesi WhatsApp on-demand untuk tenant '${cleanSessionId}'...`, {
+          action: 'provision_session_on_demand',
+          sessionId: cleanSessionId,
+          ownerId: resolvedOwnerId,
+        });
+        const sessionDir = path.join(this.baseSessionPath, `session_${cleanSessionId}`);
+        return await this.registerSession({
+          sessionId: cleanSessionId,
+          ownerId: resolvedOwnerId,
+          sessionPath: sessionDir,
+          printQRInTerminal: false,
+        });
+      })();
+      this.provisioningPromises.set(cleanSessionId, inflight);
+    }
+
+    try {
+      await inflight;
+    } finally {
+      this.provisioningPromises.delete(cleanSessionId);
+    }
+
+    return sessionRegistry.get(cleanSessionId)!;
   }
 
   getAllSessions(): Map<string, WhatsAppSessionEntry> {
@@ -170,30 +222,36 @@ export class WhatsAppBotManager {
   }
 
   async initFromEnv(): Promise<void> {
-    const autoStart = process.env.START_DEFAULT_WA_SESSION !== 'false';
-    const defaultSessionId = process.env.WA_DEFAULT_SESSION_ID || 'default';
-
-    if (!autoStart) {
-      whatsappLogger.info('Autostart sesi WhatsApp default dinonaktifkan (START_DEFAULT_WA_SESSION=false).');
-      return;
-    }
-
-    try {
-      await this.registerSession({
-        sessionId: defaultSessionId,
-        sessionPath: path.join(this.baseSessionPath, `session_${defaultSessionId}`),
-        printQRInTerminal: process.env.WA_PRINT_QR !== 'false',
-      });
-    } catch (err: any) {
-      whatsappLogger.error(`Gagal menginisialisasi default WhatsApp sesi dari .env: ${err.message}`, err);
-    }
+    whatsappLogger.info('Mode produksi murni aktif: WhatsApp sessions hanya dimuat per-tenant (tidak ada sesi default).');
   }
 
   async stopSession(sessionId: string, purge: boolean = false): Promise<void> {
     const entry = sessionRegistry.get(sessionId);
     if (entry) {
-      if (entry.reconnectTimer) clearTimeout(entry.reconnectTimer);
+      entry.isDestroyed = true;
+      if (entry.reconnectTimer) {
+        clearTimeout(entry.reconnectTimer);
+        entry.reconnectTimer = undefined;
+      }
+
+      // Jika purge diminta dan sesi sedang terhubung/terotentikasi, kirimkan sinyal logout resmi ke WhatsApp
+      if (purge && (entry.status === 'open' || entry.phoneNumber)) {
+        try {
+          whatsappLogger.info(`Mengirimkan instruksi unpairing resmi (logout) ke server WhatsApp untuk sesi '${sessionId}'...`);
+          await Promise.race([
+            entry.sock.logout('User requested disconnect from Meseid dashboard'),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Logout timeout')), 3500)),
+          ]);
+          whatsappLogger.info(`Perangkat WhatsApp sesi '${sessionId}' berhasil di-unpair secara resmi.`);
+        } catch (logoutErr: any) {
+          whatsappLogger.warn(`Peringatan saat mengirim logout ke WhatsApp: ${logoutErr.message}. Melanjutkan penutupan soket.`);
+        }
+      }
+
       try {
+        entry.sock.ev.removeAllListeners('connection.update');
+        entry.sock.ev.removeAllListeners('creds.update');
+        entry.sock.ev.removeAllListeners('messages.upsert');
         entry.sock.end(undefined);
       } catch {
         // Abaikan jika sudah tertutup
@@ -234,10 +292,15 @@ export class WhatsAppBotManager {
       }
     }
 
+    const resolvedOwnerId = cleanSessionId.startsWith('owner_')
+      ? cleanSessionId.replace(/^owner_/, '').replace(/_/g, '-')
+      : undefined;
+
     return this.registerSession({
-      sessionId,
+      sessionId: cleanSessionId,
+      ownerId: resolvedOwnerId,
       sessionPath: sessionDir,
-      printQRInTerminal: true,
+      printQRInTerminal: false,
     });
   }
 

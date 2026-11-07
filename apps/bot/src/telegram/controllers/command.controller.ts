@@ -1,4 +1,4 @@
-import type { Context } from 'grammy';
+import { type Context, Keyboard } from 'grammy';
 import { telegramView } from '../views/telegram.view';
 import { telegramLogger } from '../../logs';
 
@@ -51,7 +51,7 @@ export class CommandController {
   }
 
   /**
-   * Menangani perintah /otp (Inverted OTP Telegram)
+   * Menangani perintah /otp dengan meminta verifikasi kontak asli Telegram (Share Contact).
    */
   async handleOtp(ctx: Context): Promise<void> {
     if (!ctx.from || !ctx.me) return;
@@ -65,44 +65,20 @@ export class CommandController {
       chatId,
     });
 
-    const apiUrl = (process.env.API_INTERNAL_URL || 'http://localhost:3000').replace(/\/+$/, '');
-    const secret = process.env.INTERNAL_API_SECRET || '';
+    const keyboard = new Keyboard()
+      .requestContact('📱 Kirim Kontak Saya')
+      .oneTime()
+      .resized();
 
-    try {
-      const res = await fetch(`${apiUrl}/api/internal/telegram/generate-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-internal-secret': secret,
-        },
-        body: JSON.stringify({
-          bot_id: botId,
-          chat_id: chatId,
-        }),
-      });
+    const replyText =
+      `🔐 *Verifikasi Keamanan Pemilik Toko*\n\n` +
+      `Untuk memastikan Anda adalah pemilik sah toko ini, silakan bagikan kontak Telegram Anda dengan menekan tombol *📱 Kirim Kontak Saya* di bawah.\n\n` +
+      `_Sistem Meseid akan mencocokkan nomor telepon akun Telegram Anda dengan nomor pribadi pemilik yang terdaftar di profil bisnis._`;
 
-      if (!res.ok) {
-        await ctx.reply('⚠️ Maaf, bot ini belum terhubung dengan akun toko di Meseid atau sistem sedang sibuk.');
-        return;
-      }
-
-      const json = (await res.json()) as { status: string; code?: string };
-      if (json.status === 'ok' && json.code) {
-        const replyText =
-          `🔐 *Kode Verifikasi Telegram Meseid*\n\n` +
-          `Kode OTP Anda:\n` +
-          `*${json.code}*\n\n` +
-          `Masukkan 6 digit kode ini pada halaman Overview Meseid untuk menautkan akun Anda sebagai Pemilik Toko.\n` +
-          `_(Kode ini berlaku selama 5 menit)_`;
-
-        await ctx.reply(replyText, { parse_mode: 'Markdown' });
-      } else {
-        await ctx.reply('⚠️ Gagal men-generate kode OTP. Silakan coba kembali.');
-      }
-    } catch (err: any) {
-      telegramLogger.error('Kesalahan saat memproses perintah /otp', err);
-      await ctx.reply('⚠️ Terjadi kendala saat menghubungi server Meseid. Silakan coba beberapa saat lagi.');
-    }
+    await ctx.reply(replyText, {
+      parse_mode: 'Markdown',
+      reply_markup: keyboard,
+    });
   }
 }
 

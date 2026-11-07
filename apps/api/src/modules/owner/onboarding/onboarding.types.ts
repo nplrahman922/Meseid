@@ -13,6 +13,8 @@ export interface PersonalizationInput {
   customRules?: string[];
   assistantSpeakingStyles?: string[];
   assistantCustomRules?: string[];
+  storeLanguage?: string;
+  assistantLanguage?: string;
   adminPersonaPrompt?: string;
   assistantPersonaPrompt?: string;
 }
@@ -56,6 +58,8 @@ export interface OnboardingDetailResult {
   storeCustomRules: string[];
   assistantSpeakingStyles: string[];
   assistantCustomRules: string[];
+  storeLanguage: string;
+  assistantLanguage: string;
   whatsappConnected: boolean;
   telegramToken: string | null;
   telegramVerified?: boolean;

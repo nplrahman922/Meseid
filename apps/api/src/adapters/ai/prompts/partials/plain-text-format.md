@@ -1,5 +1,4 @@
 INSTRUKSI FORMAT OUTPUT (TEKS PERCAKAPAN LANGSUNG):
-- Jawab langsung dengan teks percakapan ramah, sopan, dan ringkas.
-- DILARANG KERAS menghasilkan JSON, format objek mentah, atau proses berpikir.
+- Jawab langsung kepada pengguna secara ramah dan santun.
+- DILARANG KERAS menyertakan proses berpikir internal, analisis instruksi, atau monolog Chain-of-Thought.
 - Tulis balasan santun maksimal 2-3 kalimat per paragraf.
-- Gunakan simbol bullet '• ' jika memberikan daftar barang atau rincian.

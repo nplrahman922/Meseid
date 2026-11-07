@@ -7,3 +7,6 @@ export * from "./actions/create-kb.action";
 export * from "./actions/update-kb.action";
 export * from "./actions/delete-kb.action";
 export * from "./actions/search-kb.action";
+export * from "./actions/list-unanswered-questions.action";
+export * from "./actions/resolve-unanswered-question.action";
+export * from "./actions/record-unanswered-question.action";

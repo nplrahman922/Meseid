@@ -11,6 +11,7 @@ import {
   sendWhatsAppMessage,
   whatsAppBotManager,
 } from './whatsapp';
+import { renderQrPageHtml } from './whatsapp/views/qr-page.view';
 import { closeRedisClient } from './redis/client';
 import { createModuleLogger } from './logs';
 
@@ -115,19 +116,44 @@ app.post('/telegram/webhook/:botId', async (c) => {
 });
 
 // 4. WhatsApp Sesi & QR Monitoring Endpoint
-app.get('/whatsapp/qr/:sessionId', (c) => {
+app.get('/whatsapp/qr/:sessionId', async (c) => {
   const sessionId = c.req.param('sessionId');
+  const isJson =
+    c.req.query('format') === 'json' ||
+    c.req.header('accept')?.includes('application/json');
+
+  let session = whatsAppBotManager.getSession(sessionId);
+
+  // Jika diminta JSON (status check) dan sesi belum ada/sedang ditutup, kembalikan status close secara aman
+  if (!session && isJson) {
+    return c.json({
+      sessionId,
+      status: 'close',
+      qr: null,
+      phoneNumber: null,
+      conflictReason: null,
+    });
+  }
+
+  if (!session) {
+    const resolvedOwnerId = sessionId.startsWith('owner_')
+      ? sessionId.replace(/^owner_/, '').replace(/_/g, '-')
+      : undefined;
+
+    try {
+      await whatsAppBotManager.getOrCreateSession(sessionId, resolvedOwnerId);
+      session = whatsAppBotManager.getSession(sessionId);
+    } catch (err: any) {
+      botLogger.error(`Gagal membuat sesi WhatsApp on-demand '${sessionId}'`, err);
+      return c.json({ error: `Gagal membuat sesi WhatsApp '${sessionId}': ${err.message}` }, 500);
+    }
+  }
+
   const qr = whatsAppBotManager.getQr(sessionId);
-  const session = whatsAppBotManager.getSession(sessionId);
 
   if (!session) {
     return c.json({ error: `Sesi WhatsApp '${sessionId}' tidak ditemukan` }, 404);
   }
-
-  // Jika diminta JSON (via query ?format=json atau header application/json)
-  const isJson =
-    c.req.query('format') === 'json' ||
-    c.req.header('accept')?.includes('application/json');
 
   if (isJson) {
     return c.json({
@@ -146,124 +172,30 @@ app.get('/whatsapp/qr/:sessionId', (c) => {
     ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qr)}`
     : '';
 
-  const html = `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Scan QR WhatsApp - Meseid Bot</title>
-  ${!isConnected && !isConflict ? '<meta http-equiv="refresh" content="8">' : ''}
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f172a;
-      color: #f8fafc;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 1rem;
-      box-sizing: border-box;
-    }
-    .card {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 1rem;
-      padding: 2rem;
-      max-width: 420px;
-      width: 100%;
-      text-align: center;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
-    }
-    h1 { font-size: 1.4rem; margin-bottom: 0.5rem; }
-    p { color: #94a3b8; font-size: 0.95rem; margin-top: 0; }
-    .qr-box {
-      background: #ffffff;
-      padding: 1rem;
-      border-radius: 0.75rem;
-      display: inline-block;
-      margin: 1rem 0;
-    }
-    .qr-box img { display: block; max-width: 100%; height: auto; }
-    .badge {
-      display: inline-block;
-      padding: 0.35rem 0.75rem;
-      border-radius: 9999px;
-      font-size: 0.85rem;
-      font-weight: 600;
-    }
-    .badge-success { background: #065f46; color: #34d399; }
-    .badge-waiting { background: #854d0e; color: #fde047; }
-    .footer { margin-top: 1.5rem; font-size: 0.8rem; color: #64748b; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>📱 Meseid WhatsApp Bot</h1>
-    <p>Sesi: <code>${sessionId}</code></p>
-    ${
-      isConnected
-        ? `
-      <div style="margin: 2rem 0;">
-        <span class="badge badge-success">🟢 Terhubung Aktif</span>
-        <h3 style="margin-top: 1rem; color: #38bdf8;">${session.phoneNumber || 'Nomor WhatsApp'}</h3>
-        <p style="margin-top: 0.5rem;">Bot sudah siap mengirim dan menerima pesan transaksi.</p>
-      </div>
-      `
-        : isConflict
-        ? `
-      <div style="margin: 2rem 0;">
-        <span class="badge" style="background: #854d0e; color: #fde047;">⚠️ Konflik Nomor WhatsApp</span>
-        <h3 style="margin-top: 1rem; color: #f87171;">Nomor Telah Terdaftar</h3>
-        <p style="margin-top: 0.5rem; font-size: 0.9rem; color: #cbd5e1;">${session.conflictReason || 'Nomor WhatsApp ini sudah aktif pada akun bisnis lain.'}</p>
-        <p style="margin-top: 0.5rem; font-size: 0.8rem; color: #94a3b8;">Notifikasi keamanan telah dikirimkan ke nomor WhatsApp tersebut. Jika ini adalah nomor Anda, silakan putuskan sambungan dari akun lama terlebih dahulu.</p>
-        <button onclick="resetSession()" style="margin-top: 1.5rem; background: #3b82f6; color: white; border: none; padding: 0.6rem 1.25rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer;">
-          🔄 Coba Scan Ulang
-        </button>
-      </div>
-      <script>
-        function resetSession() {
-          fetch('/whatsapp/session/reset/${sessionId}', {
-            method: 'POST',
-            headers: { 'x-internal-secret': '${process.env.INTERNAL_API_SECRET || ''}' }
-          })
-            .then(() => window.location.reload())
-            .catch(() => window.location.reload());
-        }
-      </script>
-      `
-        : qrUrl
-        ? `
-      <span class="badge badge-waiting">🟡 Menunggu Scan QR</span>
-      <div class="qr-box">
-        <img src="${qrUrl}" alt="Scan QR Code" width="280" height="280" />
-      </div>
-      <p>Buka WhatsApp di HP Anda &gt; <b>Perangkat Tertaut</b> &gt; <b>Tautkan Perangkat</b> lalu scan QR di atas.</p>
-      <div class="footer">Halaman akan me-refresh otomatis setiap 8 detik...</div>
-      `
-        : `
-      <div style="margin: 2rem 0;">
-        <span class="badge badge-waiting">⏳ Memuat Sesi...</span>
-        <p style="margin-top: 1rem;">Sedang menghubungkan ke server WhatsApp...</p>
-      </div>
-      <div class="footer">Halaman akan me-refresh otomatis...</div>
-      `
-    }
-  </div>
-</body>
-</html>`;
+  const html = renderQrPageHtml({
+    sessionId,
+    isConnected,
+    isConflict,
+    conflictReason: session.conflictReason,
+    phoneNumber: session.phoneNumber,
+    qrUrl,
+    internalSecret: process.env.INTERNAL_API_SECRET,
+  });
 
   return c.html(html);
 });
 
-app.get('/whatsapp/status/:sessionId', (c) => {
+app.get('/whatsapp/status/:sessionId', async (c) => {
   const sessionId = c.req.param('sessionId');
   const session = whatsAppBotManager.getSession(sessionId);
 
   if (!session) {
-    return c.json({ error: `Sesi WhatsApp '${sessionId}' tidak ditemukan` }, 404);
+    return c.json({
+      sessionId,
+      status: 'close',
+      phoneNumber: null,
+      conflictReason: null,
+    });
   }
 
   return c.json({
@@ -297,6 +229,29 @@ app.post('/whatsapp/session/reset/:sessionId', async (c) => {
   }
 });
 
+// 5b. WhatsApp Sesi Stop / Disconnect Endpoint
+app.post('/whatsapp/session/stop/:sessionId', async (c) => {
+  const secret = c.req.header('x-internal-secret');
+  const expectedSecret = process.env.INTERNAL_API_SECRET;
+  if (expectedSecret && secret !== expectedSecret) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+
+  const sessionId = c.req.param('sessionId');
+  try {
+    await whatsAppBotManager.stopSession(sessionId, true);
+    return c.json({
+      success: true,
+      message: `WhatsApp session '${sessionId}' has been disconnected.`,
+      sessionId,
+      status: 'disconnected',
+    });
+  } catch (err: any) {
+    botLogger.error(`Failed to stop WhatsApp session '${sessionId}'`, err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 // 6. Telegram Token Verification & Auto-Registration Endpoint
 app.post('/telegram/verify', async (c) => {
   const secret = c.req.header('x-internal-secret');
@@ -325,6 +280,27 @@ app.post('/telegram/verify', async (c) => {
     });
   } catch (err: any) {
     botLogger.error('Failed to verify Telegram bot token', err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 6b. Telegram Bot Stop / Disconnect Endpoint
+app.post('/telegram/stop/:botId', async (c) => {
+  const secret = c.req.header('x-internal-secret');
+  const expectedSecret = process.env.INTERNAL_API_SECRET;
+  if (expectedSecret && secret !== expectedSecret) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+
+  const botId = c.req.param('botId');
+  try {
+    await telegramBotManager.stopBot(botId);
+    return c.json({
+      success: true,
+      message: `Telegram bot '${botId}' has been stopped.`,
+    });
+  } catch (err: any) {
+    botLogger.error(`Failed to stop Telegram bot '${botId}'`, err);
     return c.json({ error: err.message }, 500);
   }
 });

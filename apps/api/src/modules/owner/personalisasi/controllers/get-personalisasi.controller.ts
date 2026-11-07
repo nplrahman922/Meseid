@@ -16,5 +16,5 @@ export async function getPersonalisasiController({
     return await getPersonalisasi(tx, owner.id);
   });
 
-  return successResponse({ config }, "Konfigurasi personalisasi berhasil diambil.");
+  return successResponse({ config, data: config }, "Konfigurasi personalisasi berhasil diambil.");
 }

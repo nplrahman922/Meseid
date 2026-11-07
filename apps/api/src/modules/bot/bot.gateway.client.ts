@@ -22,7 +22,7 @@ export interface TelegramVerifyResult {
 /**
  * Fetches real-time connection status and QR code for a WhatsApp session from the Bot Gateway.
  */
-export async function getWhatsappStatus(sessionId: string = "default"): Promise<WhatsappStatusResult> {
+export async function getWhatsappStatus(sessionId: string): Promise<WhatsappStatusResult> {
   try {
     const res = await fetch(`${env.BOT_INTERNAL_URL}/whatsapp/qr/${sessionId}?format=json`, {
       method: "GET",
@@ -63,7 +63,7 @@ export async function getWhatsappStatus(sessionId: string = "default"): Promise<
 /**
  * Purges previous session credentials and triggers a fresh QR code generation on the Bot Gateway.
  */
-export async function resetWhatsappSession(sessionId: string = "default"): Promise<{
+export async function resetWhatsappSession(sessionId: string): Promise<{
   success: boolean;
   message?: string;
   status?: string;
@@ -136,3 +136,80 @@ export async function verifyTelegramBotToken(token: string): Promise<TelegramVer
     };
   }
 }
+
+/**
+ * Disconnects and purges an active WhatsApp session from Bot Gateway.
+ */
+export async function disconnectWhatsappSession(sessionId: string): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${env.BOT_INTERNAL_URL}/whatsapp/session/stop/${sessionId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": env.INTERNAL_API_SECRET,
+      },
+    });
+
+    const data = (await res.json()) as any;
+    if (!res.ok) {
+      return {
+        success: false,
+        error: data.error || `HTTP ${res.status}`,
+      };
+    }
+
+    return {
+      success: true,
+      message: data.message,
+    };
+  } catch (err: any) {
+    gatewayLogger.error(`Failed to disconnect WhatsApp session via Bot Gateway`, err);
+    return {
+      success: false,
+      error: err.message,
+    };
+  }
+}
+
+/**
+ * Stops an active Telegram bot from Bot Gateway.
+ */
+export async function stopTelegramBot(botId: string): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${env.BOT_INTERNAL_URL}/telegram/stop/${botId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": env.INTERNAL_API_SECRET,
+      },
+    });
+
+    const data = (await res.json()) as any;
+    if (!res.ok) {
+      return {
+        success: false,
+        error: data.error || `HTTP ${res.status}`,
+      };
+    }
+
+    return {
+      success: true,
+      message: data.message,
+    };
+  } catch (err: any) {
+    gatewayLogger.error(`Failed to stop Telegram bot via Bot Gateway`, err);
+    return {
+      success: false,
+      error: err.message,
+    };
+  }
+}
+

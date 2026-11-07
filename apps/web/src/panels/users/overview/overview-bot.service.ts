@@ -75,8 +75,9 @@ export async function verifyOtpCode(
 
 /**
  * Fetches real-time status and QR code for store WhatsApp bot.
+ * Jika sessionId tidak dioper, backend secara otomatis mengisolasi ke sesi milik owner yang terotentikasi.
  */
-export async function fetchWhatsappStatus(sessionId: string = 'default'): Promise<{
+export async function fetchWhatsappStatus(sessionId?: string): Promise<{
 	success: boolean;
 	status: 'connecting' | 'open' | 'close' | 'qr_ready' | 'logged_out' | 'conflict';
 	qr: string | null;
@@ -85,7 +86,10 @@ export async function fetchWhatsappStatus(sessionId: string = 'default'): Promis
 	error?: string;
 }> {
 	try {
-		const res = await fetch(`/api/bot/whatsapp/status?sessionId=${sessionId}`, {
+		const url = sessionId
+			? `/api/bot/whatsapp/status?sessionId=${encodeURIComponent(sessionId)}`
+			: '/api/bot/whatsapp/status';
+		const res = await fetch(url, {
 			method: 'GET',
 			headers: { Accept: 'application/json' },
 			credentials: 'include'
@@ -122,12 +126,14 @@ export async function fetchWhatsappStatus(sessionId: string = 'default'): Promis
 
 /**
  * Resets WhatsApp session to purge stale credentials and start fresh QR code scanning.
+ * Jika sessionId tidak dioper, backend secara otomatis mereset sesi milik owner yang terotentikasi.
  */
-export async function resetWhatsappSession(sessionId: string = 'default'): Promise<{
+export async function resetWhatsappSession(sessionId?: string): Promise<{
 	success: boolean;
 	error?: string;
 }> {
 	try {
+		const body = sessionId ? { sessionId } : {};
 		const res = await fetch('/api/bot/whatsapp/reset', {
 			method: 'POST',
 			headers: {
@@ -135,7 +141,7 @@ export async function resetWhatsappSession(sessionId: string = 'default'): Promi
 				Accept: 'application/json'
 			},
 			credentials: 'include',
-			body: JSON.stringify({ sessionId })
+			body: JSON.stringify(body)
 		});
 
 		const json = await res.json();

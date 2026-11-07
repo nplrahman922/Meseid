@@ -6,7 +6,9 @@
 		initialTitle?: string;
 		initialCategory?: string;
 		initialContent?: string;
-		onSave?: (payload: NewEntryPayload) => void;
+		initialIsInternal?: boolean;
+		availableCategories?: string[];
+		onSave?: (payload: NewEntryPayload) => Promise<void> | void;
 		onClose?: () => void;
 	}
 
@@ -15,31 +17,77 @@
 		initialTitle = '',
 		initialCategory = 'Produk / Harga',
 		initialContent = '',
+		initialIsInternal = false,
+		availableCategories = ['Produk / Harga', 'Jam operasional', 'Produk', 'FAQ', 'Kebijakan'],
 		onSave,
 		onClose
 	}: Props = $props();
 
 	let title = $state('');
 	let category = $state('Produk / Harga');
+	let customCategory = $state('');
+	let isCustomCat = $state(false);
 	let content = $state('');
+	let isInternal = $state(false);
+	let isSaving = $state(false);
+	let errorMessage = $state('');
 
 	$effect(() => {
 		if (isOpen) {
 			title = initialTitle;
-			category = initialCategory || 'Produk / Harga';
 			content = initialContent;
+			isInternal = initialIsInternal ?? false;
+			errorMessage = '';
+			isSaving = false;
+
+			const cat = initialCategory || 'Produk / Harga';
+			if (availableCategories.includes(cat)) {
+				category = cat;
+				isCustomCat = false;
+				customCategory = '';
+			} else {
+				category = 'Lainnya';
+				isCustomCat = true;
+				customCategory = cat;
+			}
 		}
 	});
 
-	function handleSubmit(e: SubmitEvent) {
+	function handleCategoryChange(e: Event) {
+		const val = (e.target as HTMLSelectElement).value;
+		category = val;
+		if (val === 'Lainnya') {
+			isCustomCat = true;
+		} else {
+			isCustomCat = false;
+			customCategory = '';
+		}
+	}
+
+	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		if (!title.trim() || !content.trim()) return;
-		if (onSave) {
-			onSave({
-				title: title.trim(),
-				category: category.trim(),
-				content: content.trim()
-			});
+
+		const finalCategory = isCustomCat
+			? customCategory.trim() || 'Umum'
+			: category.trim();
+
+		isSaving = true;
+		errorMessage = '';
+		try {
+			if (onSave) {
+				await onSave({
+					title: title.trim(),
+					category: finalCategory,
+					content: content.trim(),
+					is_internal: isInternal
+				});
+			}
+			onClose?.();
+		} catch (err: any) {
+			errorMessage = err.message || 'Gagal menyimpan entri.';
+		} finally {
+			isSaving = false;
 		}
 	}
 </script>
@@ -59,11 +107,18 @@
 				<button
 					type="button"
 					onclick={onClose}
+					disabled={isSaving}
 					class="text-[#9CA3AF] hover:text-[#111111] text-lg font-bold p-1 cursor-pointer"
 				>
 					✕
 				</button>
 			</div>
+
+			{#if errorMessage}
+				<div class="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-inter">
+					{errorMessage}
+				</div>
+			{/if}
 
 			<!-- Form -->
 			<form onsubmit={handleSubmit} class="space-y-4 text-xs font-intel">
@@ -89,15 +144,24 @@
 					</label>
 					<select
 						id="entry-category"
-						bind:value={category}
+						value={category}
+						onchange={handleCategoryChange}
 						class="w-full px-3.5 py-2.5 bg-white border border-[#E5E7EB] rounded-xl text-xs sm:text-sm font-intel text-[#111111] focus:outline-none"
 					>
-						<option value="Produk / Harga">Produk / Harga</option>
-						<option value="Jam operasional">Jam operasional</option>
-						<option value="Produk">Produk</option>
-						<option value="FAQ">FAQ</option>
-						<option value="Kebijakan">Kebijakan</option>
+						{#each availableCategories as cat}
+							<option value={cat}>{cat}</option>
+						{/each}
+						<option value="Lainnya">+ Buat Kategori Baru...</option>
 					</select>
+					{#if isCustomCat}
+						<input
+							type="text"
+							bind:value={customCategory}
+							required
+							placeholder="Tuliskan nama kategori baru..."
+							class="w-full mt-2 px-3.5 py-2 bg-white border border-[#0E6B2B] rounded-xl text-xs font-intel text-[#111111] focus:outline-none"
+						/>
+					{/if}
 				</div>
 
 				<!-- Content / Answer -->
@@ -115,20 +179,38 @@
 					></textarea>
 				</div>
 
+				<!-- Internal / Confidential Toggle -->
+				<div class="flex items-start gap-2.5 p-3 rounded-xl bg-gray-50 border border-[#E5E7EB]">
+					<input
+						id="entry-internal"
+						type="checkbox"
+						bind:checked={isInternal}
+						class="mt-0.5 h-4 w-4 rounded border-[#D1D5DB] text-[#0E6B2B] focus:ring-[#0E6B2B] cursor-pointer"
+					/>
+					<label for="entry-internal" class="text-xs font-intel text-[#374151] cursor-pointer">
+						<span class="font-medium text-[#111111]">Hanya untuk Asisten Bisnis (Internal / Rahasia)</span>
+						<p class="text-[11px] text-[#6B7280] leading-snug mt-0.5">
+							Jika dicentang, bot toko tidak akan memberikan jawaban ini ke pelanggan umum (hanya dipakai saat berkonsultasi dengan Owner).
+						</p>
+					</label>
+				</div>
+
 				<!-- Action Buttons -->
 				<div class="flex items-center justify-end gap-3 pt-3 border-t border-[#F3F4F6]">
 					<button
 						type="button"
 						onclick={onClose}
+						disabled={isSaving}
 						class="px-4 py-2 text-xs sm:text-sm font-intel text-[#4B5563] bg-white border border-[#D1D5DB] rounded-xl hover:bg-[#F9FAFB] cursor-pointer"
 					>
 						Batal
 					</button>
 					<button
 						type="submit"
-						class="px-4 py-2 text-xs sm:text-sm font-intel font-medium text-[#111111] bg-[#1ED10E] hover:bg-[#1bb80d] rounded-xl cursor-pointer shadow-xs"
+						disabled={isSaving}
+						class="px-4 py-2 text-xs sm:text-sm font-intel font-medium text-[#111111] bg-[#1ED10E] hover:bg-[#1bb80d] disabled:opacity-50 rounded-xl cursor-pointer shadow-xs"
 					>
-						Simpan Entri
+						{isSaving ? 'Menyimpan...' : 'Simpan Entri'}
 					</button>
 				</div>
 			</form>

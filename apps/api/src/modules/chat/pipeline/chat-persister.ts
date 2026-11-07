@@ -22,11 +22,14 @@ export class ChatPersister {
   }): Promise<void> {
     const { owner, payload, isOwner, persona, finalReply, aiResult } = params;
 
+    const isGroup = payload.chat_type === "group" || payload.chat_id?.endsWith("@g.us");
+    const threadId = isGroup ? payload.chat_id : payload.sender_id;
+
     await withSystemContext(async (tx) => {
       await saveConversationMessage(tx, {
         ownerId: owner.owner_id,
         channel: payload.channel,
-        senderId: payload.sender_id,
+        senderId: threadId,
         isOwner,
         persona,
         role: "assistant",
