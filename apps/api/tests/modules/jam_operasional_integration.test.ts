@@ -56,4 +56,9 @@ describe("Jam Operasional & Operating Hours Evaluator Tests", () => {
     expect(res.isClosed).toBe(false);
     expect(res.shouldIntercept).toBe(false);
   });
+
+  it("6. ChatPersister.persistInboundSuccess is callable and defined", () => {
+    const { ChatPersister } = require("../../src/modules/chat/pipeline/chat-persister");
+    expect(typeof ChatPersister.persistInboundSuccess).toBe("function");
+  });
 });

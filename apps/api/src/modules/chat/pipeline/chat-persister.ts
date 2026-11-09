@@ -60,6 +60,64 @@ export class ChatPersister {
   }
 
   /**
+   * Menyimpan balasan di luar jam operasional ke conversation_messages,
+   * mencatat ke chat_logs analitik, dan memperbarui status inbound_messages menjadi 'done'.
+   */
+  static async persistInboundSuccess(
+    payload: InboundMessageInput,
+    owner: ChannelOwnerResolution,
+    replyMessage: string
+  ): Promise<void> {
+    const isGroup = payload.chat_type === "group" || payload.chat_id?.endsWith("@g.us");
+    const threadId = isGroup ? payload.chat_id : payload.sender_id;
+
+    await withSystemContext(async (tx) => {
+      if (payload.text) {
+        await saveConversationMessage(tx, {
+          ownerId: owner.owner_id,
+          channel: payload.channel,
+          senderId: threadId,
+          isOwner: false,
+          persona: "admin",
+          role: "user",
+          content: payload.text,
+        });
+      }
+
+      await saveConversationMessage(tx, {
+        ownerId: owner.owner_id,
+        channel: payload.channel,
+        senderId: threadId,
+        isOwner: false,
+        persona: "admin",
+        role: "assistant",
+        content: replyMessage,
+      });
+
+      await tx`
+        INSERT INTO chat_logs (
+          owner_id, channel, external_sender_id, summary, intent, sentiment
+        )
+        VALUES (
+          ${owner.owner_id},
+          ${payload.channel},
+          ${payload.sender_id},
+          'Balasan otomatis di luar jam operasional',
+          'out_of_hours',
+          'neutral'
+        );
+      `;
+
+      await tx`
+        UPDATE inbound_messages
+        SET status = 'done',
+            updated_at = now()
+        WHERE channel = ${payload.channel} AND external_message_id = ${payload.external_message_id};
+      `;
+    });
+  }
+
+  /**
    * Menandai pesan inbound sebagai 'failed' jika terjadi kendala saat pemrosesan.
    */
   static async markInboundFailed(payload: InboundMessageInput, errorReason?: string): Promise<void> {
