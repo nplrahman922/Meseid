@@ -241,7 +241,7 @@ export async function googleAuthCallbackController({
   if (userRole === "owner") {
     const isCompleted = isNewTenant ? false : (existingOwner?.onboarding_completed ?? false);
     if (stateReturnUrl) {
-      redirectTo = stateReturnUrl;
+      redirectTo = stateReturnUrl === "/jadwal" ? "/dashboard?tab=jadwal" : stateReturnUrl;
     } else if (!isCompleted && isBrowserHtmlRequest) {
       redirectTo = "/overview";
     }
