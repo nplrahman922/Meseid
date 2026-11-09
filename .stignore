@@ -1,0 +1,11 @@
+(?d).git
+(?d)node_modules
+(?d)dist
+(?d)build
+(?d).svelte-kit
+(?d)logs
+(?d)data
+(?d)meseid_pgdata
+(?d)meseid_wa_session
+(?d)*.log
+(?d)__pycache__

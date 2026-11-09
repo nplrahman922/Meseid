@@ -115,6 +115,7 @@ export class DiscussionOrchestrator {
       businessName: input.owner.business_name,
       responseLanguage: input.chatContext.responseLanguage,
       hasPhotoAttachment,
+      customPersonaPrompt: input.chatContext.customPersonaPrompt,
     });
 
     // 3. Jika Auditor Menyetujui (Valid) -> Selesai dalam 1 Putaran
@@ -219,6 +220,7 @@ export class DiscussionOrchestrator {
         businessName: input.owner.business_name,
         responseLanguage: input.chatContext.responseLanguage,
         hasPhotoAttachment,
+        customPersonaPrompt: input.chatContext.customPersonaPrompt,
       });
 
       // 4A. Jika Draf 2 Lolos Audit -> Kirim Draf 2
@@ -270,10 +272,13 @@ export class DiscussionOrchestrator {
         };
       }
 
+      const sapaanMatch = input.chatContext.customPersonaPrompt?.match(/sapaan(?:\s+hormat)?\s*["“']([^"”']+)["”']/i);
+      const ownerSalutation = sapaanMatch ? sapaanMatch[1] : "Tuan Muda";
+
       // Prioritas 2: Balasan penolakan santun / pengakuan keterbatasan sistem sesuai persona
       const gracefulFallbackReply = isCustomer
         ? "Mohon maaf Kak, saat ini kami belum dapat memberikan informasi yang akurat mengenai hal tersebut. Silakan tanyakan hal lain seputar produk atau layanan resmi kami ya Kak."
-        : "Mohon maaf Tuan Muda, asisten sedang mengalami sedikit kendala dalam merumuskan balasan yang tepat untuk permintaan ini. Apakah ada kebutuhan bisnis atau hal lain yang bisa asisten bantu?";
+        : `Mohon maaf ${ownerSalutation}, asisten sedang mengalami sedikit kendala dalam merumuskan balasan yang tepat untuk permintaan ini. Apakah ada kebutuhan bisnis atau hal lain yang bisa asisten bantu?`;
 
       return {
         reply: gracefulFallbackReply,
@@ -283,9 +288,12 @@ export class DiscussionOrchestrator {
       };
     } catch (refineErr: any) {
       orchestratorLogger.error(`Gagal pada putaran diskusi AI: ${refineErr.message}`, refineErr);
+      const sapaanMatch = input.chatContext.customPersonaPrompt?.match(/sapaan(?:\s+hormat)?\s*["“']([^"”']+)["”']/i);
+      const ownerSalutation = sapaanMatch ? sapaanMatch[1] : "Tuan Muda";
+
       const safeEmergencyReply = isCustomer
         ? "Mohon maaf Kak, sistem kami sedang mengalami sedikit gangguan. Silakan coba sesaat lagi ya."
-        : "Mohon maaf Tuan Muda, terjadi sedikit gangguan koneksi pada sistem asisten saat memproses balasan.";
+        : `Mohon maaf ${ownerSalutation}, terjadi sedikit gangguan koneksi pada sistem asisten saat memproses balasan.`;
       return {
         reply: safeEmergencyReply,
         aiResult,

@@ -5,20 +5,22 @@
  */
 export class AiCotCleaner {
   private static readonly COT_START_PATTERNS = [
-    /The user (?:is asking|\([^)]*\) is|\b)[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
-    /He wants me to[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
-    /Let me review[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
-    /Format requirements:[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
-    /I need to (?:respond|answer|provide|balance)[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)/i,
+    /The user (?:is asking|\([^)]*\) is|\b)[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Raja)/i,
+    /He wants me to[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Raja)/i,
+    /Let me review[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Raja)/i,
+    /Format requirements:[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Raja)/i,
+    /I need to (?:respond|answer|provide|balance)[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Raja)/i,
+    /^(?:EnBee Assistance:|Assistant:|Persona:|\d+\.\s*(?:Identify|Check|Determine|Analyze))[\s\S]*?(?:Let me compose the reply:|Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Raja)/i,
   ];
 
   private static readonly META_REASONING_PATTERNS = [
     /.*?baikan di atas dengan ramah dan rapi!["”]?\s*[—–-]\s*/gi,
-    /Write a new reply that fully complies[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)/i,
-    /The improvement direction says:[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)/i,
-    /So the auditor wants me to[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)/i,
-    /This is contradictory[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)/i,
-    /I think the safest interpretation[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)/i,
+    /Write a new reply that fully complies[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap|Raja)/i,
+    /The improvement direction says:[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap|Raja)/i,
+    /So the auditor wants me to[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap|Raja)/i,
+    /This is contradictory[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap|Raja)/i,
+    /I think the safest interpretation[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap|Raja)/i,
+    /^[•\-*]\s*(?:Priority|Actually,|There's a conflict|This is tricky|Given the hierarchy|Rules also say|I should respond|However|I think the safest|I'll use|Wait, let me)[\s\S]*?(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap|Raja)/i,
   ];
 
   /**
@@ -40,21 +42,23 @@ export class AiCotCleaner {
     const filteredLines = lines.filter((line) => {
       const trimmedLine = line.trim();
       if (!trimmedLine) return true;
-      return !/^(?:[•\-*]|\d+\.)?\s*(?:There's also|The rules say|Let me re-read|Wait, actually|Wait, the prompt|Actually, looking|Looking at the|The API key is explicitly|This looks like a test|My draft|I should probably|I need to ensure|Draft:|Here's a thinking|One thing:|Check constraints:|Then:|And:|Instruksi Revisi|Identify the Core Task|Analyze User Input|Determine Response Strategy|Check against rules|Draft Response|Final check|It seems)\b/i.test(trimmedLine) &&
-        !/\b(?:in the knowledge base: "API Key|looking at the prompt structure|test case or a formatted|actual user message in the chat interface|Identify the Core Task|Analyze User Input)\b/i.test(trimmedLine);
+      return (
+        !/^(?:[•\-*]|\d+\.)?\s*(?:EnBee Assistance|There's also|The rules say|Let me re-read|Wait, actually|Wait, the prompt|Actually, looking|Looking at the|The API key is explicitly|This looks like a test|My draft|I should probably|I need to ensure|Draft:|Here's a thinking|One thing:|Check constraints:|Then:|And:|Instruksi Revisi|Identify the Core Task|Analyze User Input|Determine Response Strategy|Check against rules|Draft Response|Final check|It seems|Identify Persona|Check Hierarchy|Priority \d+:|Actually, the prompt|There's a conflict|This is tricky|Given the hierarchy|Rules also say|I should respond|However|I think the safest|I'll use|Which one is more)\b/i.test(trimmedLine) &&
+        !/\b(?:in the knowledge base: "API Key|looking at the prompt structure|test case or a formatted|actual user message in the chat interface|Identify the Core Task|Analyze User Input|Identify Persona\/Role|Check Hierarchy & Rules|This is tricky\. I need to decide)\b/i.test(trimmedLine)
+      );
     });
     text = filteredLines.join('\n').trim();
 
     // 1d. Hapus blok proses berpikir/analisis di awal output model reasoning (Nemotron)
-    if (/^(?:Here'?s (?:a|the) thinking process|1\.\s*\*?Analyze|1\.\s*\*?Identify|Analyzing|Thinking Process)/i.test(text)) {
-      const naturalGreetingIdx = text.search(/\b(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Hai|Isi knowledgebase|Meseid|Untuk|Toko|Produk|Layanan|Ya|Tidak|Hello|Hi|Dear|Sure|Welcome|Certainly|Gue|Aku|こんにちは|はい|ありがとうございます)\b/i);
+    if (/^(?:EnBee Assistance:|Here'?s (?:a|the) thinking process|\d+\.\s*\*?(?:Analyze|Identify|Check)|Analyzing|Thinking Process)/i.test(text)) {
+      const naturalGreetingIdx = text.search(/\b(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Hai|Raja|Isi knowledgebase|Meseid|Untuk|Toko|Produk|Layanan|Ya|Tidak|Hello|Hi|Dear|Sure|Welcome|Certainly|Gue|Aku|こんにちは|はい|ありがとうございます)\b/i);
       if (naturalGreetingIdx > 0) {
         text = text.slice(naturalGreetingIdx).trim();
       } else {
         const parts = text.split(/\n\s*\n/);
         if (parts.length > 1) {
           const lastPart = parts[parts.length - 1].trim();
-          if (lastPart.length > 10 && !/^\d+\./.test(lastPart)) {
+          if (lastPart.length > 10 && !/^\d+\./.test(lastPart) && !this.isEnglishMonologue(lastPart)) {
             text = lastPart;
           }
         }
@@ -78,7 +82,7 @@ export class AiCotCleaner {
       if (pattern.test(text)) {
         text = text.replace(pattern, (matched) => {
           // Ambil kata pembuka bahasa Indonesia yang tertangkap di akhir pola
-          const lastWords = matched.match(/(Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap)[\s\S]*$/i);
+          const lastWords = matched.match(/(Berikut adalah|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Raja)[\s\S]*$/i);
           return lastWords ? lastWords[0] : '';
         }).trim();
       }
@@ -88,7 +92,7 @@ export class AiCotCleaner {
     for (const pattern of this.META_REASONING_PATTERNS) {
       if (pattern.test(text)) {
         text = text.replace(pattern, (matched) => {
-          const matchIndonesian = matched.match(/(Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap)[\s\S]*$/i);
+          const matchIndonesian = matched.match(/(Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Siap|Raja)[\s\S]*$/i);
           return matchIndonesian ? matchIndonesian[0] : '';
         }).trim();
       }
@@ -96,7 +100,7 @@ export class AiCotCleaner {
 
     // 5. Jika teks masih diawali kalimat meta bahasa Inggris murni
     if (/^(?:The user|He wants|She wants|Write a new reply|The improvement direction|So the auditor|This is contradictory|User asks)\b/i.test(text)) {
-      const naturalGreetingIntro = text.search(/\b(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Hai|Hello|Hi|Dear|Sure|Welcome|Certainly|Gue|Aku|こんにちは|はい|ありがとうございます)\b/i);
+      const naturalGreetingIntro = text.search(/\b(?:Berikut|Tentu|Halo|Mohon maaf|Baik|Tuan Muda|Kak|Siap|Hai|Raja|Hello|Hi|Dear|Sure|Welcome|Certainly|Gue|Aku|こんにちは|はい|ありがとうございます)\b/i);
       if (naturalGreetingIntro > 0) {
         text = text.slice(naturalGreetingIntro).trim();
       }
@@ -112,8 +116,8 @@ export class AiCotCleaner {
     if (!rawText || typeof rawText !== 'string') return false;
     const trimmed = rawText.trim();
     if (
-      /^(?:The user\b|He wants\b|She wants\b|Write a new reply\b|The improvement direction\b|So the auditor\b|This is contradictory\b|In my previous\b|Format requirements:\b|Here's a thinking process:|User asks\b|Wait, actually\b|1\.\s*\*?Analyze|Let me (?:think|review|analyze|examine|check the prompt|compose|re-read|see what|balance|ensure|craft|determine)\b|I need to (?:respond|answer|provide|balance|ensure|check|analyze|follow|craft)\b)/i.test(trimmed) ||
-      /\b(?:The user is asking|Let me review|Let me compose the reply:|In my previous response|There's also a "RAHASIA"|looking at the prompt structure|test case or a formatted|Identify the Core Task|Analyze User Input|Determine Response Strategy)\b/i.test(trimmed)
+      /^(?:The user\b|He wants\b|She wants\b|Write a new reply\b|The improvement direction\b|So the auditor\b|This is contradictory\b|In my previous\b|Format requirements:\b|Here's a thinking process:|User asks\b|Wait, actually\b|1\.\s*\*?Analyze|EnBee Assistance:|Assistant:|Persona:|\d+\.\s*(?:Identify|Check|Determine|Analyze)|Let me (?:think|review|analyze|examine|check the prompt|compose|re-read|see what|balance|ensure|craft|determine)\b|I need to (?:respond|answer|provide|balance|ensure|check|analyze|follow|craft)\b)/i.test(trimmed) ||
+      /\b(?:The user is asking|Let me review|Let me compose the reply:|In my previous response|There's also a "RAHASIA"|looking at the prompt structure|test case or a formatted|Identify the Core Task|Analyze User Input|Determine Response Strategy|Identify Persona\/Role|Check Hierarchy & Rules|Priority 1: Sapaan|This is tricky\. I need to decide|Given the hierarchy:|The prompt structure seems to have|Which one is more recent|I'll use "(?:Raja Sang Maharaja|Bang)" as the sapaan)\b/i.test(trimmed)
     ) {
       return true;
     }

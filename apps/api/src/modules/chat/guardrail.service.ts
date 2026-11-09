@@ -2,6 +2,7 @@ import { aiAdapter } from "../../adapters/ai";
 import { AiCotCleaner } from "../../adapters/ai/sanitizer/ai-cot-cleaner";
 import { PromptEngine } from "../../adapters/ai/prompts/prompt-engine";
 import { createModuleLogger } from "../../logs";
+import { CustomerScopeChecker } from "./customer-scope.checker";
 import type { ActionDirective } from "../../adapters/ai/types";
 
 const guardrailLogger = createModuleLogger("guardrail-service");
@@ -14,6 +15,7 @@ export interface GuardrailValidationInput {
   businessName?: string;
   responseLanguage?: string;
   hasPhotoAttachment?: boolean;
+  customPersonaPrompt?: string;
 }
 
 export interface GuardrailValidationResult {
@@ -73,6 +75,19 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
       trimmedDraft.includes('{\n  "reply"') ||
       trimmedDraft.includes("```json");
 
+    // 0. Deterministic Circuit Breaker: Batas Panjang Kata & Monolog CoT
+    const words = trimmedDraft.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+    const isDocOrAnalysisRequest = /\b(?:laporan|dokumen|faktur|invoice|sop|tabel|rekap|jurnal|neraca|buku besar|analisis|ringkasan|jelaskan secara detail|rincian lengkap|daftar|list|script|kode|coding|python|buatkan|hitung)\b/i.test(input.userMessage);
+    const userWords = input.userMessage.trim().split(/\s+/).filter(Boolean).length;
+    const isCasualOrShortQuery = userWords <= 12;
+
+    const isOverthinkingMonologue =
+      !isDocOrAnalysisRequest &&
+      ((isCasualOrShortQuery && (wordCount > 100 || trimmedDraft.length > 700)) ||
+        wordCount > 180 ||
+        trimmedDraft.length > 1100);
+
     const hasCotLeakage =
       AiCotCleaner.isEnglishMonologue(trimmedDraft) ||
       /The user is asking\b/i.test(trimmedDraft) ||
@@ -81,8 +96,47 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
       /Format requirements:\b/i.test(trimmedDraft) ||
       /Let me compose the reply:/i.test(trimmedDraft);
 
+    if (isOverthinkingMonologue || hasCotLeakage) {
+      const sapaanMatch = input.customPersonaPrompt?.match(/sapaan(?:\s+hormat)?\s*["“']([^"”']+)["”']/i);
+      const ownerSalutation = sapaanMatch ? sapaanMatch[1] : "Raja Sang Maharaja";
+
+      const defaultReply = !isCustomer
+        ? `Halo ${ownerSalutation}! 👑 EnBee siap melayani. Ada kebutuhan operasional atau pembukuan yang bisa EnBee bantu hari ini?`
+        : "Halo Kak! Ada yang bisa kami bantu seputar produk atau layanan kami hari ini?";
+
+      const cleaned = AiCotCleaner.cleanThinkingArtifacts(trimmedDraft);
+      const cleanedWords = cleaned.split(/\s+/).filter(Boolean).length;
+      const isCleanUsable =
+        cleaned.length > 5 &&
+        !AiCotCleaner.isEnglishMonologue(cleaned) &&
+        cleanedWords <= 100 &&
+        !cleaned.startsWith("{");
+
+      const finalCorrected = isCleanUsable ? cleaned : defaultReply;
+
+      guardrailLogger.warn("Circuit Breaker aktif: Mencegat monolog CoT / overthinking draf", {
+        wordCount,
+        draftLength: trimmedDraft.length,
+        isOverthinkingMonologue,
+        hasCotLeakage,
+      });
+
+      return {
+        isValid: false,
+        confidenceScore: 1.0,
+        violationType: "corrupted",
+        actionDirective: "sanitize_clean",
+        reason: isOverthinkingMonologue
+          ? `Word-count circuit breaker: Balasan melebihi batas wajar (${wordCount} kata) untuk percakapan santai`
+          : "CoT circuit breaker: Draf terdeteksi monolog proses berpikir internal model",
+        critique: "Draf balasan berupa monolog/overthinking internal dan tidak layak dikirim ke pengguna.",
+        correctedReply: finalCorrected,
+        judgeModel: "circuit-breaker-engine",
+      };
+    }
+
     // Deteksi awal: Batasan Ruang Lingkup Pelanggan (Anti Out-of-Scope: Permintaan Kode / Pantun Bebas)
-    const outOfScopeCheck = this.checkCustomerOutOfScope(input);
+    const outOfScopeCheck = CustomerScopeChecker.check(input, this.judgeModel);
     if (outOfScopeCheck) {
       guardrailLogger.info("Mencegat permintaan Out-of-Scope untuk Pelanggan", {
         reason: outOfScopeCheck.reason,
@@ -188,7 +242,14 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
           violationType = "corrupted";
           actionDirective = "sanitize_clean";
           critique = "Draf mengandung monolog proses berpikir (CoT) dalam bahasa Inggris.";
-          correctedReply = AiCotCleaner.cleanThinkingArtifacts(input.draftReply);
+          const cleaned = AiCotCleaner.cleanThinkingArtifacts(input.draftReply);
+          const sapaanMatch = input.customPersonaPrompt?.match(/sapaan(?:\s+hormat)?\s*["“']([^"”']+)["”']/i);
+          const ownerSalutation = sapaanMatch ? sapaanMatch[1] : "Raja Sang Maharaja";
+          correctedReply = (!cleaned || AiCotCleaner.isEnglishMonologue(cleaned))
+            ? (!isCustomer
+                ? `Halo ${ownerSalutation}! 👑 EnBee siap melayani. Ada yang bisa dibantu hari ini?`
+                : "Halo Kak! Ada yang bisa kami bantu seputar produk atau layanan kami?")
+            : cleaned;
         }
 
         // Lindungi harga jual resmi pelanggan dari false-positive leakage:
@@ -293,61 +354,6 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
         judgeModel: this.judgeModel,
       };
     }
-  }
-
-  /**
-   * Deterministic Interceptor: Mencegah pelanggan memanfaatkan bot toko untuk meminta pembuatan
-   * kode pemrograman bebas, tugas akademik, atau pantun/hiburan santai yang tidak tercantum di Knowledge Base toko.
-   */
-  private checkCustomerOutOfScope(input: GuardrailValidationInput): GuardrailValidationResult | null {
-    if (input.persona !== "admin") return null;
-
-    const kbLower = (input.knowledgeBaseContext || "").toLowerCase();
-    const userLower = (input.userMessage || "").toLowerCase();
-    const draft = input.draftReply || "";
-
-    const isRequestingCode =
-      /\b(?:buatkan|kasih|minta|bikin|tuliskan|generate|tampilkan|contoh)\b[\s\S]*?\b(?:kode|code|koding|coding|script|python|rust|golang|javascript|html|css|sql)\b/i.test(userLower) ||
-      /\b(?:kode|code|script|python|rust|golang|javascript)\b[\s\S]*?\b(?:buat|bikin|generate|hello\s*world|greetings)\b/i.test(userLower);
-
-    const isRequestingPantun =
-      /\b(?:buatkan|kasih|minta|bikin|tuliskan|generate|ada|bisa)\b[\s\S]*?\b(?:pantun|puisi|cerpen|lelucon|candaan)\b/i.test(userLower) ||
-      /\b(?:pantun|puisi)\b[\s\S]*?\b(?:buat|bikin|dong|kak|bang|salam|greetings)\b/i.test(userLower);
-
-    const hasCodeInDraft = /(?:```(?:python|rust|javascript|ts|js|html|css|sql|sh)?\s*[\s\S]+?```|print\s*\()/i.test(draft);
-
-    const kbHasCode = /\b(jasa (?:coding|pemrograman|script|koding)|kursus coding|belajar python)\b/i.test(kbLower);
-    const kbHasPantun = /\b(jasa pantun|pembuatan pantun|koleksi pantun)\b/i.test(kbLower);
-
-    const business = input.businessName || "toko kami";
-
-    if ((isRequestingCode || hasCodeInDraft) && !kbHasCode) {
-      return {
-        isValid: false,
-        confidenceScore: 1.0,
-        violationType: "inappropriate",
-        actionDirective: "refuse_politely",
-        critique: "Pelanggan meminta pembuatan kode pemrograman di luar layanan resmi toko.",
-        reason: "Deteksi Out-of-Scope: Permintaan kode pemrograman bebas untuk pelanggan",
-        correctedReply: `Mohon maaf, sebagai asisten layanan ${business}, saya hanya dapat membantu pertanyaan seputar produk dan layanan resmi kami. Apakah ada informasi seputar layanan ${business} yang bisa kami bantu?`,
-        judgeModel: this.judgeModel,
-      };
-    }
-
-    if (isRequestingPantun && !kbHasPantun) {
-      return {
-        isValid: false,
-        confidenceScore: 1.0,
-        violationType: "inappropriate",
-        actionDirective: "refuse_politely",
-        critique: "Pelanggan meminta pantun/hiburan di luar layanan resmi toko.",
-        reason: "Deteksi Out-of-Scope: Permintaan pantun bebas untuk pelanggan",
-        correctedReply: `Mohon maaf, sebagai asisten layanan ${business}, saya hanya dapat membantu pertanyaan seputar produk dan layanan resmi kami. Apakah ada informasi seputar layanan ${business} yang bisa kami bantu?`,
-        judgeModel: this.judgeModel,
-      };
-    }
-
-    return null;
   }
 }
 

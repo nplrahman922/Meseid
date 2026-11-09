@@ -57,7 +57,7 @@ INSERT INTO ai_model_presets (
   'nvidia/nemotron-3.5-lightning-free',
   NULL,
   0.10,
-  4000,
+  8000,
   0.80,
   'strict_json',
   false,

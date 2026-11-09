@@ -3,7 +3,6 @@ import {
   generateTelegramOtpController,
   checkChannelConflictController,
   handleWhatsAppLoggedOutController,
-  verifyTelegramContactAndGenerateOtpController,
 } from "../modules/bot";
 
 /**
@@ -15,13 +14,6 @@ export const internalRoutes = new Elysia({ prefix: "/internal" })
     body: t.Object({
       bot_id: t.String(),
       chat_id: t.String(),
-    }),
-  })
-  .post("/telegram/verify-and-generate-otp", verifyTelegramContactAndGenerateOtpController, {
-    body: t.Object({
-      bot_id: t.String(),
-      chat_id: t.String(),
-      phone_number: t.String(),
     }),
   })
   .post("/channel/check-conflict", checkChannelConflictController, {
