@@ -6,6 +6,7 @@ export interface GoogleTokens {
   id_token?: string;
   expires_in?: number;
   token_type?: string;
+  scope?: string;
 }
 
 export interface GoogleUserProfile {
@@ -17,7 +18,11 @@ export interface GoogleUserProfile {
 }
 
 export interface GoogleOAuthAdapter {
-  getAuthorizationUrl(state: string, redirectUriOverride?: string): string;
+  getAuthorizationUrl(
+    state: string,
+    redirectUriOverride?: string,
+    scopes?: string[]
+  ): string;
   exchangeCode(
     code: string,
     redirectUriOverride?: string
@@ -25,12 +30,21 @@ export interface GoogleOAuthAdapter {
 }
 
 export class DefaultGoogleOAuthAdapter implements GoogleOAuthAdapter {
-  getAuthorizationUrl(state: string, redirectUriOverride?: string): string {
+  getAuthorizationUrl(
+    state: string,
+    redirectUriOverride?: string,
+    scopes?: string[]
+  ): string {
+    const requestedScopes =
+      scopes && scopes.length > 0
+        ? Array.from(new Set(["openid", "email", "profile", ...scopes])).join(" ")
+        : "openid email profile";
+
     const params = new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID,
       redirect_uri: redirectUriOverride || env.GOOGLE_REDIRECT_URI,
       response_type: "code",
-      scope: "openid email profile",
+      scope: requestedScopes,
       state,
       access_type: "offline",
       prompt: "consent",

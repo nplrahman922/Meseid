@@ -33,3 +33,11 @@ export interface OrderInquiry {
 	collisionDetail?: string;
 	status: 'pending' | 'approved' | 'rejected' | 'negotiating';
 }
+
+export interface GoogleCalendarState {
+	connected: boolean;
+	calendarId: string;
+	scopes: string[];
+	hasCalendarScope: boolean;
+	lastSyncedAt: string | null;
+}

@@ -19,6 +19,8 @@ export const authRoutes = new Elysia()
         t.Object({
           redirect: t.Optional(t.String()),
           returnUrl: t.Optional(t.String()),
+          features: t.Optional(t.String()),
+          scope: t.Optional(t.String()),
         })
       ),
     }

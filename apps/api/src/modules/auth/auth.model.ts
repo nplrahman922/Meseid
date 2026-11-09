@@ -224,21 +224,59 @@ export async function provisionNewOwner(
       `;
     }
 
-    // 5. Store Google tokens encrypted if available
-    if (input.tokens?.access_token || input.tokens?.refresh_token) {
-      const accessEnc = input.tokens.access_token ? encryptBytes(input.tokens.access_token) : null;
-      const refreshEnc = input.tokens.refresh_token ? encryptBytes(input.tokens.refresh_token) : null;
+/**
+ * Upserts Google OAuth tokens, scopes, and calendar_id for an owner.
+ */
+export async function upsertGoogleConnectionTokens(
+  tx: Tx,
+  ownerId: string,
+  tokens?: GoogleTokens
+): Promise<void> {
+  if (!tokens?.access_token && !tokens?.refresh_token) return;
 
-      await tx`
-        INSERT INTO google_connections (owner_id, access_token_enc, refresh_token_enc, status)
-        VALUES (${newOwner.id}, ${accessEnc}, ${refreshEnc}, 'connected')
-        ON CONFLICT (owner_id) DO UPDATE
-        SET access_token_enc = EXCLUDED.access_token_enc,
-            refresh_token_enc = COALESCE(EXCLUDED.refresh_token_enc, google_connections.refresh_token_enc),
-            status = 'connected',
-            updated_at = now();
-      `;
-    }
+  const accessEnc = tokens.access_token ? encryptBytes(tokens.access_token) : null;
+  const refreshEnc = tokens.refresh_token ? encryptBytes(tokens.refresh_token) : null;
+  const scopes = tokens.scope ? tokens.scope.split(" ").filter(Boolean) : [];
+  const expiresAt = tokens.expires_in
+    ? new Date(Date.now() + tokens.expires_in * 1000)
+    : null;
+
+  await tx`
+    INSERT INTO google_connections (
+      owner_id,
+      access_token_enc,
+      refresh_token_enc,
+      token_expires_at,
+      scopes,
+      calendar_id,
+      status
+    )
+    VALUES (
+      ${ownerId},
+      ${accessEnc},
+      ${refreshEnc},
+      ${expiresAt},
+      ${scopes},
+      'primary',
+      'connected'
+    )
+    ON CONFLICT (owner_id) DO UPDATE
+    SET access_token_enc = COALESCE(EXCLUDED.access_token_enc, google_connections.access_token_enc),
+        refresh_token_enc = COALESCE(EXCLUDED.refresh_token_enc, google_connections.refresh_token_enc),
+        token_expires_at = COALESCE(EXCLUDED.token_expires_at, google_connections.token_expires_at),
+        scopes = CASE 
+          WHEN array_length(EXCLUDED.scopes, 1) > 0 
+          THEN ARRAY(SELECT DISTINCT unnest(google_connections.scopes || EXCLUDED.scopes))
+          ELSE google_connections.scopes
+        END,
+        calendar_id = COALESCE(google_connections.calendar_id, 'primary'),
+        status = 'connected',
+        updated_at = now();
+  `;
+}
+
+    // 5. Store Google tokens encrypted if available
+    await upsertGoogleConnectionTokens(tx, newOwner.id, input.tokens);
 
     return { user: newUser, owner: newOwner };
   });

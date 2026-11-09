@@ -47,14 +47,10 @@
 		<button
 			type="button"
 			onclick={onAddSchedule}
-			class="px-3.5 sm:px-4 py-2 text-xs font-medium text-white bg-[#22C55E] hover:bg-[#16A34A] rounded-lg transition-colors cursor-pointer"
+			class="px-3.5 sm:px-4 py-2 text-xs font-medium text-white bg-[#16A34A] hover:bg-[#15803D] rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
 		>
+			<span class="text-sm font-bold leading-none">+</span>
 			Tambah jadwal
 		</button>
-	</div>
-
-	<!-- Google Calendar Sync Badge -->
-	<div class="bg-[#F0FDF4] border border-[#DCFCE7] rounded-xl px-3.5 py-2 text-xs text-[#166534] flex items-center gap-1.5 font-mono">
-		<span>✓ Google Calendar tersinkron · Kalender {businessName} · Terakhir 09.55 WIB</span>
 	</div>
 </div>

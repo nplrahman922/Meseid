@@ -13,6 +13,7 @@ import { PresetResolver } from "./pipeline/preset-resolver";
 import { AudioTranscriber } from "../../adapters/ai/audio/audio-transcriber";
 import { AccessGate } from "./pipeline/access-gate";
 import { OperatingHoursEvaluator } from "./pipeline/operating-hours.evaluator";
+import { ScheduleOrchestrator } from "./pipeline/schedule-orchestrator";
 
 const chatLogger = createModuleLogger("chat-service");
 
@@ -180,6 +181,39 @@ export class ChatService {
             ? "Halo Bos! Ada yang bisa saya bantu catat untuk pembukuan hari ini?"
             : `Halo! Selamat datang di ${owner.business_name}. Ada yang bisa kami bantu?`,
       };
+    }
+
+    // 6.1 Jalur Penjadwalan: Konfirmasi & Manajemen Agenda / Booking (Google Calendar)
+    if (isOwner) {
+      // Prioritas 1: Periksa apakah pesan adalah jawaban konfirmasi atas draf jadwal (Ya/Batal)
+      const confirmResult = await ScheduleOrchestrator.handleOwnerConfirmation(owner, userMessage);
+      if (confirmResult.handled && confirmResult.replyText) {
+        await ChatPersister.persistInboundSuccess(payload, owner, confirmResult.replyText);
+        return {
+          status: "success",
+          reply_text: confirmResult.replyText,
+        };
+      }
+
+      // Prioritas 2: Periksa apakah pesan meminta membuat / menghapus agenda jadwal
+      const ownerSchedResult = await ScheduleOrchestrator.handleOwnerIntent(owner, userMessage);
+      if (ownerSchedResult.handled && ownerSchedResult.replyText) {
+        await ChatPersister.persistInboundSuccess(payload, owner, ownerSchedResult.replyText);
+        return {
+          status: "success",
+          reply_text: ownerSchedResult.replyText,
+        };
+      }
+    } else {
+      // Untuk Pelanggan (Admin Persona): Deteksi permintaan booking / reservasi
+      const bookingResult = await ScheduleOrchestrator.handleCustomerBooking(owner, payload, userMessage);
+      if (bookingResult.handled && bookingResult.replyText) {
+        await ChatPersister.persistInboundSuccess(payload, owner, bookingResult.replyText);
+        return {
+          status: "success",
+          reply_text: bookingResult.replyText,
+        };
+      }
     }
 
     // 7. Muat Konteks Knowledge Base & Persona

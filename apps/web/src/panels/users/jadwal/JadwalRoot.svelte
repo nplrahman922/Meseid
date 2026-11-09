@@ -1,10 +1,22 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import JadwalHeader from './components/JadwalHeader.svelte';
 	import JadwalNavTabs from './components/JadwalNavTabs.svelte';
+	import GoogleCalendarSyncCard from './components/GoogleCalendarSyncCard.svelte';
 	import KalenderBulanCard from './components/KalenderBulanCard.svelte';
 	import RincianJadwalGrid from './components/RincianJadwalGrid.svelte';
 	import PermintaanPembeliSection from './components/PermintaanPembeliSection.svelte';
-	import type { CalendarViewMode, ConfirmedEvent } from './jadwal.types';
+	import AddScheduleModal from './components/AddScheduleModal.svelte';
+	import type { CalendarViewMode, ConfirmedEvent, OrderInquiry, GoogleCalendarState } from './jadwal.types';
+	import {
+		fetchGoogleStatus,
+		fetchSchedules,
+		fetchBookings,
+		createSchedule,
+		deleteSchedule,
+		respondBooking,
+		triggerGoogleSync,
+	} from './jadwal-api.service';
 
 	interface Props {
 		businessName?: string;
@@ -20,38 +32,102 @@
 
 	let currentViewMode = $state<CalendarViewMode>('bulan');
 	let toastMessage = $state('');
+	let isAddModalOpen = $state(false);
+	let isSyncing = $state(false);
+
+	let googleState = $state<GoogleCalendarState>({
+		connected: false,
+		calendarId: 'primary',
+		scopes: [],
+		hasCalendarScope: false,
+		lastSyncedAt: null,
+	});
+
+	let confirmedEvents = $state<ConfirmedEvent[]>([]);
+	let customerInquiries = $state<OrderInquiry[]>([]);
 
 	function showToast(msg: string) {
 		toastMessage = msg;
 		setTimeout(() => {
 			toastMessage = '';
-		}, 3000);
+		}, 3500);
 	}
 
-	function handleModeChange(mode: CalendarViewMode) {
-		currentViewMode = mode;
-		showToast(`Beralih ke tampilan kalender ${mode === 'bulan' ? 'Bulanan' : 'Mingguan'}.`);
+	async function loadAllData() {
+		try {
+			const [gStatus, scheds, inqs] = await Promise.all([
+				fetchGoogleStatus().catch(() => googleState),
+				fetchSchedules().catch(() => []),
+				fetchBookings().catch(() => []),
+			]);
+			googleState = gStatus;
+			if (scheds.length > 0) confirmedEvents = scheds;
+			if (inqs.length > 0) customerInquiries = inqs;
+		} catch (err: any) {
+			console.error('Gagal memuat data jadwal:', err);
+		}
 	}
 
-	function handleAddSchedule() {
-		showToast('Membuka formulir tambah jadwal baru...');
+	onMount(() => {
+		loadAllData();
+	});
+
+	async function handleGoogleSync() {
+		try {
+			isSyncing = true;
+			const msg = await triggerGoogleSync();
+			showToast(msg);
+			await loadAllData();
+		} catch (err: any) {
+			showToast(`Gagal sinkronisasi: ${err.message}`);
+		} finally {
+			isSyncing = false;
+		}
 	}
 
-	function handleSelectDate(day: number) {
-		showToast(`Melihat jadwal untuk tanggal ${day} Oktober 2026.`);
+	async function handleSaveNewSchedule(data: {
+		title: string;
+		start_at: string;
+		end_at: string;
+		description?: string;
+	}) {
+		await createSchedule(data);
+		showToast('Jadwal baru berhasil ditambahkan dan disinkronkan ke kalender!');
+		await loadAllData();
 	}
 
-	function handleSelectEvent(event: ConfirmedEvent) {
-		showToast(`Membuka rincian: ${event.title}`);
+	async function handleDeleteSchedule(id: string) {
+		try {
+			await deleteSchedule(id);
+			showToast('Jadwal berhasil dibatalkan/dihapus.');
+			await loadAllData();
+		} catch (err: any) {
+			showToast(`Gagal menghapus: ${err.message}`);
+		}
 	}
 
-	function handleInquiryAction(id: string, action: string) {
+	async function handleInquiryAction(id: string, action: string) {
 		if (action === 'usul_waktu') {
 			showToast('Mengirimkan usulan opsi waktu alternatif ke pembeli...');
-		} else if (action === 'setujui' || action === 'setujui_ubah') {
-			showToast('Pesanan disetujui dan jadwal terkonfirmasi!');
+			return;
+		}
+
+		if (action === 'setujui' || action === 'setujui_ubah') {
+			try {
+				await respondBooking(id, 'approve');
+				showToast('Pesanan disetujui dan jadwal otomatis masuk ke kalender!');
+				await loadAllData();
+			} catch (err: any) {
+				showToast(`Gagal menyetujui: ${err.message}`);
+			}
 		} else if (action === 'tolak') {
-			showToast('Permintaan pesanan ditolak.');
+			try {
+				await respondBooking(id, 'reject');
+				showToast('Permintaan pesanan ditolak.');
+				await loadAllData();
+			} catch (err: any) {
+				showToast(`Gagal menolak: ${err.message}`);
+			}
 		}
 	}
 </script>
@@ -60,22 +136,42 @@
 	<!-- 1. Header & Title -->
 	<JadwalHeader {businessName} {role} {dateText} />
 
-	<!-- 2. Nav Tabs & Google Sync Banner -->
-	<JadwalNavTabs
-		activeMode={currentViewMode}
-		{businessName}
-		onSelectMode={handleModeChange}
-		onAddSchedule={handleAddSchedule}
+	<!-- 2. Google Calendar Live Integration Card -->
+	<GoogleCalendarSyncCard
+		state={googleState}
+		onSync={handleGoogleSync}
+		{isSyncing}
 	/>
 
-	<!-- 3. Monthly Calendar Card -->
-	<KalenderBulanCard onSelectDate={handleSelectDate} />
+	<!-- 3. Nav Tabs & Actions -->
+	<JadwalNavTabs
+		activeMode={currentViewMode}
+		onSelectMode={(mode) => (currentViewMode = mode)}
+		onAddSchedule={() => (isAddModalOpen = true)}
+	/>
 
-	<!-- 4. Schedule Details Grid (Confirmed Events & Weekly Specimen) -->
-	<RincianJadwalGrid onSelectEvent={handleSelectEvent} />
+	<!-- 4. Monthly Calendar Card -->
+	<KalenderBulanCard onSelectDate={(day) => showToast(`Melihat jadwal untuk tanggal ${day}`)} />
 
-	<!-- 5. Customer Inquiries Section (Order Requests & Collision Warning) -->
-	<PermintaanPembeliSection onAction={handleInquiryAction} />
+	<!-- 5. Schedule Details Grid -->
+	<RincianJadwalGrid
+		events={confirmedEvents}
+		onSelectEvent={(ev) => showToast(`Agenda: ${ev.title}`)}
+		onDeleteEvent={handleDeleteSchedule}
+	/>
+
+	<!-- 6. Customer Inquiries Section -->
+	<PermintaanPembeliSection
+		inquiries={customerInquiries}
+		onAction={handleInquiryAction}
+	/>
+
+	<!-- 7. Add Schedule Modal -->
+	<AddScheduleModal
+		isOpen={isAddModalOpen}
+		onClose={() => (isAddModalOpen = false)}
+		onSubmit={handleSaveNewSchedule}
+	/>
 
 	<!-- Floating Toast Feedback -->
 	{#if toastMessage}

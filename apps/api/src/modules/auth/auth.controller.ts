@@ -22,8 +22,10 @@ import {
   createAdminUser,
   provisionNewOwner,
   getMeOwnerDetails,
+  upsertGoogleConnectionTokens,
   type OwnerRecord,
 } from "./auth.model";
+import { withOwnerContext } from "../../db/client";
 
 /**
  * Controller for GET /api/auth/google
@@ -34,7 +36,7 @@ export async function googleAuthRedirectController({
   redirect,
   headers,
 }: {
-  query: { redirect?: string; returnUrl?: string };
+  query: { redirect?: string; returnUrl?: string; features?: string; scope?: string };
   cookie: Record<string, any>;
   redirect: (url: string) => any;
   headers: Record<string, string | undefined>;
@@ -64,8 +66,13 @@ export async function googleAuthRedirectController({
     maxAge: 600, // 10 minutes
   });
 
+  const extraScopes: string[] = [];
+  if (query.features === "calendar" || query.scope?.includes("calendar")) {
+    extraScopes.push("https://www.googleapis.com/auth/calendar.events");
+  }
+
   const adapter = getGoogleOAuthAdapter();
-  const authUrl = adapter.getAuthorizationUrl(state, effectiveRedirectUri);
+  const authUrl = adapter.getAuthorizationUrl(state, effectiveRedirectUri, extraScopes);
 
   if (query.redirect === "false") {
     return {
@@ -174,6 +181,17 @@ export async function googleAuthCallbackController({
           );
         }
         ownerId = existingOwner.id;
+
+        // Upsert tokens and scopes for existing owner
+        if (tokens) {
+          try {
+            await withOwnerContext(existingOwner.id, userId, async (tx) => {
+              await upsertGoogleConnectionTokens(tx, existingOwner!.id, tokens);
+            });
+          } catch (e: any) {
+            // Non-fatal if upsert fails
+          }
+        }
       }
     }
   } else if (isAdmin) {

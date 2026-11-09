@@ -25,6 +25,7 @@ import {
   getKanalStatusController,
   getJamOperasionalController,
   updateJamOperasionalController,
+  jadwalRoutes,
 } from "../modules/owner";
 
 export const ownerRoutes = new Elysia()
@@ -373,6 +374,11 @@ export const ownerRoutes = new Elysia()
         auto_reply_enabled: t.Optional(t.Boolean()),
       }),
     }
-  );
+  )
+
+  // ==========================================
+  // 7. Jadwal & Scheduling Sub-Module
+  // ==========================================
+  .use(jadwalRoutes);
 
 export const ownerProfileRoutes = ownerRoutes;

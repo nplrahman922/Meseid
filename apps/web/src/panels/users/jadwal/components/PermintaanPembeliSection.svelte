@@ -2,12 +2,13 @@
 	import type { OrderInquiry } from '../jadwal.types';
 
 	interface Props {
+		inquiries?: OrderInquiry[];
 		onAction?: (inquiryId: string, action: string) => void;
 	}
 
-	let { onAction }: Props = $props();
+	let { inquiries = [], onAction }: Props = $props();
 
-	let inquiries = $state<OrderInquiry[]>([
+	const defaultInquiries: OrderInquiry[] = [
 		{
 			id: 'inq-dedi',
 			customerName: 'Bapak Dedi',
@@ -31,10 +32,13 @@
 			hasCollision: false,
 			status: 'pending'
 		}
-	]);
+	];
+
+	let displayList = $derived(inquiries.length > 0 ? inquiries : defaultInquiries);
+	let pendingCollisions = $derived(displayList.filter((i) => i.hasCollision && i.status === 'pending'));
 
 	function handleActionClick(id: string, action: string) {
-		const target = inquiries.find((i) => i.id === id);
+		const target = displayList.find((i) => i.id === id);
 		if (target) {
 			if (action === 'setujui' || action === 'setujui_ubah') target.status = 'approved';
 			if (action === 'tolak') target.status = 'rejected';
@@ -51,16 +55,18 @@
 	</h2>
 
 	<!-- Collision Alert Banner -->
-	<div class="bg-[#FEFCE8] border border-[#FEF08A] rounded-xl px-4 py-3 text-xs text-[#854D0E] flex items-start gap-2 leading-relaxed">
-		<span class="text-sm">⚠️</span>
-		<span>
-			<strong>1 permintaan bentrok:</strong> Bapak Dedi, 17 Okt 11.15–11.45 WIB bertumpuk dengan Ibu Sari, 11.00–11.30 WIB. Pilih waktu lain sebelum menyetujui.
-		</span>
-	</div>
+	{#if pendingCollisions.length > 0}
+		<div class="bg-[#FEFCE8] border border-[#FEF08A] rounded-xl px-4 py-3 text-xs text-[#854D0E] flex items-start gap-2 leading-relaxed">
+			<span class="text-sm">⚠️</span>
+			<span>
+				<strong>{pendingCollisions.length} permintaan berpotensi bentrok:</strong> {pendingCollisions[0]?.collisionDetail || 'Tinjau waktu sebelum menyetujui.'}
+			</span>
+		</div>
+	{/if}
 
 	<!-- 2-Card Inquiries Grid -->
 	<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-		{#each inquiries as item (item.id)}
+		{#each displayList as item (item.id)}
 			<div class="bg-white rounded-2xl border border-[#E5E7EB] p-5 sm:p-6 space-y-4 flex flex-col justify-between">
 				<div class="space-y-3">
 					<!-- Title & Status Badge -->

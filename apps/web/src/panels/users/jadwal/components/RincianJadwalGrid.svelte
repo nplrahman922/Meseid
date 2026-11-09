@@ -2,12 +2,14 @@
 	import type { ConfirmedEvent, WeeklyDaySchedule } from '../jadwal.types';
 
 	interface Props {
+		events?: ConfirmedEvent[];
 		onSelectEvent?: (event: ConfirmedEvent) => void;
+		onDeleteEvent?: (id: string) => void;
 	}
 
-	let { onSelectEvent }: Props = $props();
+	let { events = [], onSelectEvent, onDeleteEvent }: Props = $props();
 
-	const confirmedEvents: ConfirmedEvent[] = [
+	const defaultEvents: ConfirmedEvent[] = [
 		{
 			id: 'ev-1',
 			title: 'Sabtu, 17 Okt · Ambil katering',
@@ -58,27 +60,46 @@
 			isOff: true
 		}
 	];
+
+	let displayEvents = $derived(events.length > 0 ? events : defaultEvents);
 </script>
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 	<!-- Left Card: Acara terkonfirmasi -->
 	<div class="bg-white rounded-2xl border border-[#E5E7EB] p-5 sm:p-6 space-y-4">
-		<h2 class="text-base sm:text-lg font-semibold text-[#111111]">
-			Acara terkonfirmasi
-		</h2>
+		<div class="flex items-center justify-between">
+			<h2 class="text-base sm:text-lg font-semibold text-[#111111]">
+				Acara terkonfirmasi
+			</h2>
+			<span class="text-xs font-mono text-[#6B7280]">
+				{displayEvents.length} agenda
+			</span>
+		</div>
 
 		<div class="space-y-4 pt-1 font-mono text-xs">
-			{#each confirmedEvents as ev (ev.id)}
+			{#each displayEvents as ev (ev.id)}
 				<div class="space-y-1 pb-3 border-b border-[#F3F4F6] last:border-0 last:pb-0">
 					<div class="flex items-center justify-between">
 						<span class="font-semibold text-[#111111]">{ev.title}</span>
-						<button
-							type="button"
-							onclick={() => onSelectEvent?.(ev)}
-							class="text-[#374151] hover:text-[#16A34A] transition-colors cursor-pointer"
-						>
-							{ev.actionLabel || 'Detail ↗'}
-						</button>
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								onclick={() => onSelectEvent?.(ev)}
+								class="text-[#374151] hover:text-[#16A34A] transition-colors cursor-pointer"
+							>
+								{ev.actionLabel || 'Detail ↗'}
+							</button>
+							{#if onDeleteEvent}
+								<button
+									type="button"
+									title="Batalkan Agenda"
+									onclick={() => onDeleteEvent?.(ev.id)}
+									class="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+								>
+									✕
+								</button>
+							{/if}
+						</div>
 					</div>
 					<p class="text-[#6B7280]">
 						{ev.note}

@@ -10,3 +10,4 @@ export * from "./onboarding/onboarding.model";
 export * from "./onboarding/onboarding.controller";
 export * from "./kanal";
 export * from "./jam-operasional";
+export * from "./jadwal";
