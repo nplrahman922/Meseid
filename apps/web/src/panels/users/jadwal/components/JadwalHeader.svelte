@@ -6,9 +6,9 @@
 	}
 
 	let {
-		businessName = 'Warung Bu Rina',
+		businessName = 'Usaha Anda',
 		role = 'Owner',
-		dateText = '16 Oktober 2026, 10.00 WIB'
+		dateText = ''
 	}: Props = $props();
 </script>
 
@@ -21,8 +21,8 @@
 		<p class="text-sm font-inter text-[#4B5563]">
 			Atur pesanan, pengingat, dan waktu usaha dalam satu kalender.
 		</p>
-		<p class="text-xs font-inter text-[#9CA3AF]">
-			Data contoh · {businessName} · {role} · {dateText}
+		<p class="text-xs font-inter text-[#6B7280]">
+			{businessName} · {role}{dateText ? ` · ${dateText}` : ''}
 		</p>
 	</div>
 

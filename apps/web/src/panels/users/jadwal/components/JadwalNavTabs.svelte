@@ -10,7 +10,7 @@
 
 	let {
 		activeMode = 'bulan',
-		businessName = 'Warung Bu Rina',
+		businessName = 'Usaha Anda',
 		onSelectMode,
 		onAddSchedule
 	}: Props = $props();

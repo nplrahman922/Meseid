@@ -25,9 +25,9 @@
 	}
 
 	let {
-		businessName = 'Warung Bu Rina',
+		businessName = 'Usaha Anda',
 		role = 'Owner',
-		dateText = '16 Oktober 2026, 10.00 WIB'
+		dateText = ''
 	}: Props = $props();
 
 	let currentViewMode = $state<CalendarViewMode>('bulan');
@@ -61,8 +61,8 @@
 				fetchBookings().catch(() => []),
 			]);
 			googleState = gStatus;
-			if (scheds.length > 0) confirmedEvents = scheds;
-			if (inqs.length > 0) customerInquiries = inqs;
+			confirmedEvents = scheds;
+			customerInquiries = inqs;
 		} catch (err: any) {
 			console.error('Gagal memuat data jadwal:', err);
 		}
@@ -151,7 +151,10 @@
 	/>
 
 	<!-- 4. Monthly Calendar Card -->
-	<KalenderBulanCard onSelectDate={(day) => showToast(`Melihat jadwal untuk tanggal ${day}`)} />
+	<KalenderBulanCard
+		events={confirmedEvents}
+		onSelectDate={(dateStr) => showToast(`Melihat jadwal untuk tanggal ${dateStr}`)}
+	/>
 
 	<!-- 5. Schedule Details Grid -->
 	<RincianJadwalGrid
