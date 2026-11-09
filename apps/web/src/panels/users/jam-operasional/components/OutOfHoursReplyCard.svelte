@@ -4,31 +4,37 @@
 	interface Props {
 		config?: OutOfHoursConfig;
 		botName?: string;
-		onSave?: () => void;
+		onSave?: () => Promise<void> | void;
 	}
 
 	let {
 		config = $bindable({
 			isEnabled: true,
-			message:
-				'Terima kasih sudah menghubungi Warung Bu Rina. Warung buka Senin–Sabtu, 08.00–20.00 WIB. Bu Rina akan membalas saat jam buka berikutnya. Rini tetap bisa bantu info menu dan harga.'
+			message: ''
 		}),
 		botName = 'Rini',
 		onSave
 	}: Props = $props();
 
+	let isSaving = $state(false);
 	let isSaved = $state(false);
 
 	function toggleEnabled() {
 		config.isEnabled = !config.isEnabled;
 	}
 
-	function handleSave() {
-		isSaved = true;
-		if (onSave) onSave();
-		setTimeout(() => {
-			isSaved = false;
-		}, 2500);
+	async function handleSave() {
+		if (isSaving) return;
+		isSaving = true;
+		try {
+			if (onSave) await onSave();
+			isSaved = true;
+			setTimeout(() => {
+				isSaved = false;
+			}, 2500);
+		} finally {
+			isSaving = false;
+		}
 	}
 </script>
 
@@ -55,7 +61,7 @@
 				Balasan luar jam · {config.isEnabled ? 'Aktif' : 'Nonaktif'}
 			</div>
 			<div class="text-[11px] font-intel {config.isEnabled ? 'text-[#0E6B2B]' : 'text-[#6B7280]'}">
-				{config.isEnabled ? 'Aktif' : 'Nonaktif'}
+				{config.isEnabled ? 'Pesan otomatis dikirim saat toko tutup' : 'Bot tidak membalas otomatis saat tutup'}
 			</div>
 		</div>
 	</div>
@@ -78,10 +84,11 @@
 	<div class="flex items-center gap-3">
 		<button
 			type="button"
+			disabled={isSaving}
 			onclick={handleSave}
-			class="px-5 py-2.5 text-xs sm:text-sm font-intel font-medium text-[#111111] bg-[#1ED10E] hover:bg-[#1bb80d] transition-colors rounded-xl cursor-pointer shadow-xs"
+			class="px-5 py-2.5 text-xs sm:text-sm font-intel font-medium text-[#111111] bg-[#1ED10E] hover:bg-[#1bb80d] disabled:opacity-50 transition-colors rounded-xl cursor-pointer shadow-xs"
 		>
-			Simpan balasan
+			{isSaving ? 'Menyimpan...' : 'Simpan balasan'}
 		</button>
 		{#if isSaved}
 			<span class="text-xs font-intel text-[#0E6B2B] animate-pulse">
@@ -93,14 +100,14 @@
 	<!-- Live Preview Section -->
 	<div class="space-y-2 pt-2 border-t border-[#F3F4F6]">
 		<div class="text-xs font-intel font-medium text-[#111111]">
-			Pratinjau · Minggu, 18 Okt 2026
+			Pratinjau Balasan Toko
 		</div>
 		<div class="bg-[#E8F9E6] border border-[#C6F0C2] rounded-2xl p-4 space-y-1 shadow-xs">
 			<div class="text-[11px] font-intel font-semibold text-[#0E6B2B]">
-				{botName} · Asisten
+				{botName} · Admin Toko
 			</div>
-			<p class="text-xs font-inter text-[#111111] leading-relaxed whitespace-pre-wrap">
-				{config.message}
+			<p class="text-xs sm:text-sm font-inter text-[#111111] leading-relaxed whitespace-pre-wrap">
+				{config.message || 'Belum ada pesan balasan yang ditentukan.'}
 			</p>
 		</div>
 	</div>

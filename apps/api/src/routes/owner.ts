@@ -23,6 +23,8 @@ import {
   toggleGlobalAccessController,
   analyzeContactBehaviorController,
   getKanalStatusController,
+  getJamOperasionalController,
+  updateJamOperasionalController,
 } from "../modules/owner";
 
 export const ownerRoutes = new Elysia()
@@ -326,6 +328,49 @@ export const ownerRoutes = new Elysia()
         target_id: t.String(),
         target_type: t.Optional(t.Union([t.Literal("number"), t.Literal("group")])),
         model_id: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // ==========================================
+  // 6. Jam Operasional Sub-Module
+  // ==========================================
+  // GET /api/owner/jam-operasional
+  .get("/jam-operasional", getJamOperasionalController)
+
+  // PUT /api/owner/jam-operasional
+  .put(
+    "/jam-operasional",
+    updateJamOperasionalController,
+    {
+      body: t.Object({
+        business_hours: t.Object({
+          weekly: t.Array(
+            t.Object({
+              id: t.String(),
+              dayName: t.String(),
+              isOpen: t.Boolean(),
+              openTime: t.String(),
+              closeTime: t.String(),
+            })
+          ),
+          exceptions: t.Array(
+            t.Object({
+              id: t.String(),
+              date: t.String(),
+              dateLabel: t.Optional(t.String()),
+              reason: t.String(),
+              isClosedAllDay: t.Boolean(),
+              openTime: t.Optional(t.Nullable(t.String())),
+              closeTime: t.Optional(t.Nullable(t.String())),
+            })
+          ),
+          outOfHours: t.Object({
+            isEnabled: t.Boolean(),
+            message: t.String(),
+          }),
+        }),
+        auto_reply_enabled: t.Optional(t.Boolean()),
       }),
     }
   );

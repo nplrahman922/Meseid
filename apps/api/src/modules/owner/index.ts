@@ -9,3 +9,4 @@ export * from "./kb/kb.controller";
 export * from "./onboarding/onboarding.model";
 export * from "./onboarding/onboarding.controller";
 export * from "./kanal";
+export * from "./jam-operasional";

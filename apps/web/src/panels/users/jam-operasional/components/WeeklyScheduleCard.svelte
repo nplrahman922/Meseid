@@ -3,34 +3,33 @@
 
 	interface Props {
 		schedules?: DaySchedule[];
-		onSave?: () => void;
+		onSave?: () => Promise<void> | void;
 	}
 
 	let {
-		schedules = $bindable([
-			{ id: 'mon', dayName: 'Senin', isOpen: true, openTime: '08.00 WIB', closeTime: '20.00 WIB' },
-			{ id: 'tue', dayName: 'Selasa', isOpen: true, openTime: '08.00 WIB', closeTime: '20.00 WIB' },
-			{ id: 'wed', dayName: 'Rabu', isOpen: true, openTime: '08.00 WIB', closeTime: '20.00 WIB' },
-			{ id: 'thu', dayName: 'Kamis', isOpen: true, openTime: '08.00 WIB', closeTime: '20.00 WIB' },
-			{ id: 'fri', dayName: 'Jumat', isOpen: true, openTime: '08.00 WIB', closeTime: '20.00 WIB' },
-			{ id: 'sat', dayName: 'Sabtu', isOpen: true, openTime: '08.00 WIB', closeTime: '20.00 WIB' },
-			{ id: 'sun', dayName: 'Minggu', isOpen: false, openTime: '08.00 WIB', closeTime: '20.00 WIB' }
-		]),
+		schedules = $bindable([]),
 		onSave
 	}: Props = $props();
 
+	let isSaving = $state(false);
 	let isSaved = $state(false);
 
 	function toggleDay(id: string) {
 		schedules = schedules.map((s) => (s.id === id ? { ...s, isOpen: !s.isOpen } : s));
 	}
 
-	function handleSave() {
-		isSaved = true;
-		if (onSave) onSave();
-		setTimeout(() => {
-			isSaved = false;
-		}, 2500);
+	async function handleSave() {
+		if (isSaving) return;
+		isSaving = true;
+		try {
+			if (onSave) await onSave();
+			isSaved = true;
+			setTimeout(() => {
+				isSaved = false;
+			}, 2500);
+		} finally {
+			isSaving = false;
+		}
 	}
 </script>
 
@@ -72,12 +71,14 @@
 						<input
 							type="text"
 							bind:value={item.openTime}
+							placeholder="08:00"
 							class="w-28 px-3 py-1.5 bg-white border border-[#E5E7EB] rounded-xl text-xs font-intel text-center text-[#111111] focus:outline-none focus:ring-1 focus:ring-[#0E6B2B]"
 						/>
 						<span class="text-xs font-inter text-[#6B7280]">sampai</span>
 						<input
 							type="text"
 							bind:value={item.closeTime}
+							placeholder="20:00"
 							class="w-28 px-3 py-1.5 bg-white border border-[#E5E7EB] rounded-xl text-xs font-intel text-center text-[#111111] focus:outline-none focus:ring-1 focus:ring-[#0E6B2B]"
 						/>
 					</div>
@@ -94,14 +95,15 @@
 	<div class="flex items-center gap-3 pt-2">
 		<button
 			type="button"
+			disabled={isSaving}
 			onclick={handleSave}
-			class="px-5 py-2.5 text-xs sm:text-sm font-intel font-medium text-[#111111] bg-[#1ED10E] hover:bg-[#1bb80d] transition-colors rounded-xl cursor-pointer shadow-xs"
+			class="px-5 py-2.5 text-xs sm:text-sm font-intel font-medium text-[#111111] bg-[#1ED10E] hover:bg-[#1bb80d] disabled:opacity-50 transition-colors rounded-xl cursor-pointer shadow-xs"
 		>
-			Simpan jam usaha
+			{isSaving ? 'Menyimpan...' : 'Simpan jam usaha'}
 		</button>
 		{#if isSaved}
 			<span class="text-xs font-intel text-[#0E6B2B] animate-pulse">
-				✓ Jadwal usaha tersimpan
+				✓ Jam usaha berhasil disimpan
 			</span>
 		{/if}
 	</div>

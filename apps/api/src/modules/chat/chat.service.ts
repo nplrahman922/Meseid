@@ -12,6 +12,7 @@ import { ChatPersister } from "./pipeline/chat-persister";
 import { PresetResolver } from "./pipeline/preset-resolver";
 import { AudioTranscriber } from "../../adapters/ai/audio/audio-transcriber";
 import { AccessGate } from "./pipeline/access-gate";
+import { OperatingHoursEvaluator } from "./pipeline/operating-hours.evaluator";
 
 const chatLogger = createModuleLogger("chat-service");
 
@@ -81,6 +82,21 @@ export class ChatService {
     const persona =
       access.effectivePersona || access.groupPersona || this.determinePersona(payload, owner);
     const isOwner = persona === "assistant";
+
+    // 3.1 Evaluasi Jam Operasional & Penjadwalan Toko (Out-of-Hours Auto-Reply)
+    const hoursEval = await OperatingHoursEvaluator.evaluate(
+      owner.owner_id,
+      isOwner,
+      persona
+    );
+
+    if (hoursEval.shouldIntercept && hoursEval.replyMessage) {
+      await ChatPersister.persistInboundSuccess(payload, owner, hoursEval.replyMessage);
+      return {
+        status: "success",
+        reply_text: hoursEval.replyMessage,
+      };
+    }
 
     // 4. Resolusi Preset & Parameter Model AI dari Database
     const preset = await PresetResolver.resolveRuntimePreset(owner.owner_id, persona);

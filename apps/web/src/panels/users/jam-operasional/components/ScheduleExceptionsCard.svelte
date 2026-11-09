@@ -5,19 +5,14 @@
 		exceptions?: ScheduleException[];
 		onAddException?: () => void;
 		onEditException?: (item: ScheduleException) => void;
+		onDeleteException?: (id: string) => void;
 	}
 
 	let {
-		exceptions = [
-			{
-				id: '1',
-				dateLabel: 'Selasa, 20 Oktober 2026',
-				reason: 'Libur keluarga · Warung tutup sepanjang hari',
-				isClosedAllDay: true
-			}
-		],
+		exceptions = [],
 		onAddException,
-		onEditException
+		onEditException,
+		onDeleteException
 	}: Props = $props();
 </script>
 
@@ -28,26 +23,42 @@
 	</h2>
 
 	<!-- Exceptions List -->
-	<div class="space-y-3">
-		{#each exceptions as item (item.id)}
-			<div class="space-y-1 pb-3 border-b border-[#F3F4F6] last:border-b-0 last:pb-0">
-				<div class="flex items-center gap-2 text-xs sm:text-sm font-intel font-medium text-[#111111]">
-					<span>{item.dateLabel}</span>
-					<span class="text-[#9CA3AF]">/</span>
-					<button
-						type="button"
-						onclick={() => onEditException?.(item)}
-						class="text-[#111111] hover:text-[#0E6B2B] hover:underline cursor-pointer"
-					>
-						Edit ↗
-					</button>
+	{#if exceptions.length > 0}
+		<div class="space-y-3">
+			{#each exceptions as item (item.id)}
+				<div class="space-y-1 pb-3 border-b border-[#F3F4F6] last:border-b-0 last:pb-0">
+					<div class="flex items-center justify-between text-xs sm:text-sm font-intel font-medium text-[#111111]">
+						<div class="flex items-center gap-2">
+							<span>{item.dateLabel}</span>
+							<span class="text-[#9CA3AF]">/</span>
+							<button
+								type="button"
+								onclick={() => onEditException?.(item)}
+								class="text-[#111111] hover:text-[#0E6B2B] hover:underline cursor-pointer"
+							>
+								Edit ↗
+							</button>
+						</div>
+						<button
+							type="button"
+							aria-label="Hapus Pengecualian"
+							onclick={() => onDeleteException?.(item.id)}
+							class="text-[#9CA3AF] hover:text-red-600 transition-colors cursor-pointer text-xs"
+						>
+							Hapus
+						</button>
+					</div>
+					<div class="text-xs font-inter text-[#6B7280]">
+						{item.reason}
+					</div>
 				</div>
-				<div class="text-xs font-inter text-[#6B7280]">
-					{item.reason}
-				</div>
-			</div>
-		{/each}
-	</div>
+			{/each}
+		</div>
+	{:else}
+		<p class="text-xs font-inter text-[#6B7280] py-1">
+			Belum ada jadwal khusus atau hari libur yang ditetapkan.
+		</p>
+	{/if}
 
 	<!-- Action Button -->
 	<div>
