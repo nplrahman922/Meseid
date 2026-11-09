@@ -11,6 +11,9 @@ export interface ConfirmedEvent {
 	note: string;
 	type: EventCategory;
 	actionLabel?: string;
+	googleEventId?: string | null;
+	source?: string;
+	status?: string;
 }
 
 export interface WeeklyDaySchedule {

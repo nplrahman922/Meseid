@@ -72,6 +72,9 @@ export async function fetchSchedules(timeMin?: string, timeMax?: string): Promis
       note: `${sTime}–${eTime} WIB · ${item.source === 'booking' ? 'Booking Pelanggan' : 'Kalender Usaha'}`,
       type: item.source === 'booking' ? 'order' : 'reminder',
       actionLabel: 'Detail ↗',
+      googleEventId: item.google_event_id,
+      source: item.source,
+      status: item.status,
     };
   });
 }
