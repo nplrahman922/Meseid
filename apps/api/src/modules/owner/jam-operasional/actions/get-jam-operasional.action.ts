@@ -34,7 +34,14 @@ export async function getJamOperasional(
     LIMIT 1;
   `;
 
-  const rawHours = botConfig?.business_hours;
+  let rawHours = botConfig?.business_hours;
+  if (typeof rawHours === "string") {
+    try {
+      rawHours = JSON.parse(rawHours);
+    } catch {
+      rawHours = null;
+    }
+  }
   let parsedHours: BusinessHoursData;
 
   if (

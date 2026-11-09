@@ -144,7 +144,14 @@ export class OperatingHoursEvaluator {
         const timezone = ownerRow.timezone || "Asia/Jakarta";
         const { dateStr, dayId, timeStr } = this.getLocalTimeParts(date, timezone);
 
-        const rawHours = botConfig?.business_hours;
+        let rawHours = botConfig?.business_hours;
+        if (typeof rawHours === "string") {
+          try {
+            rawHours = JSON.parse(rawHours);
+          } catch {
+            rawHours = null;
+          }
+        }
 
         // Jika pemilik usaha belum pernah menyetel jam operasional di database, toko buka 24 jam penuh
         if (
