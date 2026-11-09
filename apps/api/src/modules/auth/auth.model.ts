@@ -224,6 +224,13 @@ export async function provisionNewOwner(
       `;
     }
 
+    // 5. Store Google tokens encrypted if available
+    await upsertGoogleConnectionTokens(tx, newOwner.id, input.tokens);
+
+    return { user: newUser, owner: newOwner };
+  });
+}
+
 /**
  * Upserts Google OAuth tokens, scopes, and calendar_id for an owner.
  */
@@ -273,13 +280,6 @@ export async function upsertGoogleConnectionTokens(
         status = 'connected',
         updated_at = now();
   `;
-}
-
-    // 5. Store Google tokens encrypted if available
-    await upsertGoogleConnectionTokens(tx, newOwner.id, input.tokens);
-
-    return { user: newUser, owner: newOwner };
-  });
 }
 
 /**
