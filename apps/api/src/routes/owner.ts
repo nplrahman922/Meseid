@@ -97,6 +97,8 @@ export const ownerRoutes = new Elysia()
         allowed_groups: t.Optional(t.Any()),
         auto_reply_enabled: t.Optional(t.Boolean()),
         business_hours: t.Optional(t.Any()),
+        banned_words: t.Optional(t.Array(t.String())),
+        group_moderation_enabled: t.Optional(t.Boolean()),
       }),
     }
   )

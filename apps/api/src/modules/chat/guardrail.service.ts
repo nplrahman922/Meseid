@@ -3,6 +3,7 @@ import { AiCotCleaner } from "../../adapters/ai/sanitizer/ai-cot-cleaner";
 import { PromptEngine } from "../../adapters/ai/prompts/prompt-engine";
 import { createModuleLogger } from "../../logs";
 import { CustomerScopeChecker } from "./customer-scope.checker";
+import { InspectContentAction } from "./moderation/inspect-content.action";
 import type { ActionDirective } from "../../adapters/ai/types";
 
 const guardrailLogger = createModuleLogger("guardrail-service");
@@ -143,6 +144,25 @@ DRAF BALASAN AI YANG AKAN DIAUDIT:
         critique: outOfScopeCheck.critique,
       });
       return outOfScopeCheck;
+    }
+
+    // Deteksi awal: Sensor Kata Terlarang / SARA pada draf output
+    const outputModeration = InspectContentAction.execute({
+      text: input.draftReply,
+      isGroup: false,
+      moderationEnabled: true,
+    });
+    if (outputModeration.isViolation) {
+      return {
+        isValid: false,
+        confidenceScore: 1.0,
+        violationType: "inappropriate",
+        actionDirective: "reject_safely",
+        reason: `Draf balasan AI terdeteksi memuat kata terlarang/SARA (${outputModeration.matchedWord})`,
+        critique: "Draf balasan memuat konten terlarang yang dilarang dikirimkan ke pengguna.",
+        correctedReply: "Mohon maaf, kami mengutamakan komunikasi yang santun dan profesional. Ada hal lain yang bisa kami bantu seputar layanan kami? 🙏",
+        judgeModel: "content-moderator-circuit-breaker",
+      };
     }
 
     try {

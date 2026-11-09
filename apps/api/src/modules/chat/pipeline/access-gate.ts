@@ -1,6 +1,7 @@
 import { withSystemContext } from "../../../db/client";
 import { createModuleLogger } from "../../../logs";
 import type { InboundMessageInput } from "../chat.schema";
+import { InspectContentAction } from "../moderation/inspect-content.action";
 
 const gateLogger = createModuleLogger("chat-access-gate");
 
@@ -9,6 +10,8 @@ export interface AccessGateResult {
   reason?: string;
   groupPersona?: "assistant" | "admin";
   effectivePersona?: "assistant" | "admin";
+  isModerationViolation?: boolean;
+  moderationWarningReply?: string;
 }
 
 export class AccessGate {
@@ -23,7 +26,11 @@ export class AccessGate {
     payload: InboundMessageInput,
     ownerId: string
   ): Promise<AccessGateResult> {
-    const isGroup = payload.chat_type === "group" || Boolean(payload.chat_id?.endsWith("@g.us"));
+    const isGroup =
+      payload.chat_type === "group" ||
+      payload.chat_type === "supergroup" ||
+      Boolean(payload.chat_id?.endsWith("@g.us")) ||
+      Boolean(payload.chat_id?.startsWith("-"));
     const targetId = isGroup ? payload.chat_id : payload.sender_id;
     const targetType = isGroup ? "group" : "number";
     const targetName = payload.sender_name || payload.sender_id;
@@ -34,8 +41,13 @@ export class AccessGate {
         const [ownerRow] = await tx<{ phone: string | null }[]>`
           SELECT phone FROM owners WHERE id = ${ownerId}::uuid LIMIT 1;
         `;
-        const [botConfig] = await tx<{ customer_access_mode: "open" | "whitelist"; allowed_contacts?: any }[]>`
-          SELECT customer_access_mode, allowed_contacts
+        const [botConfig] = await tx<{
+          customer_access_mode: "open" | "whitelist";
+          allowed_contacts?: any;
+          banned_words?: any;
+          group_moderation_enabled?: boolean;
+        }[]>`
+          SELECT customer_access_mode, allowed_contacts, banned_words, group_moderation_enabled
           FROM bot_configs
           WHERE owner_id = ${ownerId}::uuid
           LIMIT 1;
@@ -111,6 +123,36 @@ export class AccessGate {
             return { allowed: false, reason: "inactive_group" };
           }
 
+          // C.1 Moderasi Otomatis Konten Grup (SARA, Kasar, Spam, Kata Terlarang Owner)
+          if (botConfig?.group_moderation_enabled !== false && payload.text) {
+            const customBannedWords: string[] = Array.isArray(botConfig?.banned_words)
+              ? botConfig.banned_words.map(String)
+              : [];
+
+            const moderation = InspectContentAction.execute({
+              text: payload.text,
+              senderName: payload.sender_name || targetName,
+              isGroup: true,
+              customBannedWords,
+              moderationEnabled: true,
+            });
+
+            if (moderation.isViolation && moderation.warningReply) {
+              gateLogger.info(
+                `Pelanggaran moderasi grup terdeteksi [${moderation.category}]: '${moderation.matchedWord}' oleh '${targetName}' di '${targetId}'`,
+                { channel: payload.channel, targetId, category: moderation.category }
+              );
+
+              return {
+                allowed: true,
+                isModerationViolation: true,
+                moderationWarningReply: moderation.warningReply,
+                groupPersona: existingRule.persona_mode || "admin",
+                effectivePersona: existingRule.persona_mode || "admin",
+              };
+            }
+          }
+
           // Cek Trigger Mode (Mention atau Reply)
           if (existingRule.trigger_mode === "mention_or_reply") {
             const isQuoted = Boolean(payload.quoted_text);
@@ -173,6 +215,30 @@ export class AccessGate {
               SET last_interaction_at = now()
               WHERE id = ${existingRule.id}::uuid;
             `;
+          }
+        }
+
+        // D.1 Moderasi Pesan Personal Pelanggan (Non-Owner)
+        if (!isOwner && payload.text) {
+          const customBannedWords: string[] = Array.isArray(botConfig?.banned_words)
+            ? botConfig.banned_words.map(String)
+            : [];
+
+          const personalModeration = InspectContentAction.execute({
+            text: payload.text,
+            senderName: payload.sender_name || targetName,
+            isGroup: false,
+            customBannedWords,
+            moderationEnabled: true,
+          });
+
+          if (personalModeration.isViolation && personalModeration.warningReply) {
+            return {
+              allowed: true,
+              isModerationViolation: true,
+              moderationWarningReply: personalModeration.warningReply,
+              effectivePersona: defaultPersona,
+            };
           }
         }
 

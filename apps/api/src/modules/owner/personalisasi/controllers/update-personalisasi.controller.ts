@@ -33,6 +33,8 @@ export async function updatePersonalisasiController({
     allowed_groups?: any;
     auto_reply_enabled?: boolean;
     business_hours?: any;
+    banned_words?: string[];
+    group_moderation_enabled?: boolean;
   };
   owner: { id: string; businessName: string; businessType: string };
   runOwnerTx: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
@@ -94,6 +96,8 @@ export async function updatePersonalisasiController({
         allowed_groups: body.allowed_groups,
         auto_reply_enabled: body.auto_reply_enabled,
         business_hours: body.business_hours,
+        banned_words: body.banned_words,
+        group_moderation_enabled: body.group_moderation_enabled,
       });
     });
 

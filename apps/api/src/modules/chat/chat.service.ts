@@ -79,6 +79,15 @@ export class ChatService {
       };
     }
 
+    // 2c. Intersep Cepat Pelanggaran Moderasi (SARA, Kasar, Spam, Kata Terlarang Owner)
+    if (access.isModerationViolation && access.moderationWarningReply) {
+      await ChatPersister.persistInboundSuccess(payload, owner, access.moderationWarningReply);
+      return {
+        status: "success",
+        reply_text: access.moderationWarningReply,
+      };
+    }
+
     // 3. Persona Detection (Unifikasi Peran Kontak Nomor & Grup dari Access Gate)
     const persona =
       access.effectivePersona || access.groupPersona || this.determinePersona(payload, owner);

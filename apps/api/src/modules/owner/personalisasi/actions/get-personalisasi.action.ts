@@ -16,6 +16,7 @@ export async function getPersonalisasi(
            selected_model_id, assistant_model_id, admin_model_id,
            customer_access_mode, allowed_contacts,
            allowed_groups, auto_reply_enabled, business_hours,
+           banned_words, group_moderation_enabled,
            created_at, updated_at
     FROM bot_configs
     WHERE owner_id = ${ownerId}::uuid;
