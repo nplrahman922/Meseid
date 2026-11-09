@@ -153,10 +153,11 @@ export class OperatingHoursEvaluator {
           }
         }
 
-        // Jika pemilik usaha belum pernah menyetel jam operasional di database, toko buka 24 jam penuh
+        // Jika pemilik usaha belum pernah menyetel jam operasional di database atau memilih mode 24 jam penuh
         if (
           !rawHours ||
           typeof rawHours !== "object" ||
+          rawHours.is24Hours === true ||
           !Array.isArray(rawHours.weekly) ||
           rawHours.weekly.length === 0
         ) {

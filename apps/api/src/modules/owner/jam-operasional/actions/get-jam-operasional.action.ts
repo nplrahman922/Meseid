@@ -51,6 +51,7 @@ export async function getJamOperasional(
     rawHours.weekly.length > 0
   ) {
     parsedHours = {
+      is24Hours: rawHours.is24Hours !== undefined ? Boolean(rawHours.is24Hours) : false,
       weekly: rawHours.weekly.map((d: any, idx: number) => ({
         id: String(d.id || DEFAULT_WEEKLY_SCHEDULE[idx]?.id || `day_${idx}`),
         dayName: String(d.dayName || DEFAULT_WEEKLY_SCHEDULE[idx]?.dayName || `Hari ${idx + 1}`),

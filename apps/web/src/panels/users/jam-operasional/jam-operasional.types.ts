@@ -22,6 +22,7 @@ export interface OutOfHoursConfig {
 }
 
 export interface BusinessHoursData {
+	is24Hours?: boolean;
 	weekly: DaySchedule[];
 	exceptions: ScheduleException[];
 	outOfHours: OutOfHoursConfig;

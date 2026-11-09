@@ -29,6 +29,7 @@
 	let activeTimezone = $state('Asia/Jakarta');
 	let adminBotName = $state('Admin Toko');
 	let autoReplyEnabled = $state(true);
+	let is24Hours = $state(true);
 
 	let weeklySchedules = $state<DaySchedule[]>([
 		{ id: 'mon', dayName: 'Senin', isOpen: true, openTime: '08:00', closeTime: '20:00' },
@@ -66,6 +67,7 @@
 			autoReplyEnabled = data.auto_reply_enabled ?? true;
 
 			if (data.business_hours) {
+				is24Hours = data.business_hours.is24Hours ?? false;
 				if (Array.isArray(data.business_hours.weekly) && data.business_hours.weekly.length > 0) {
 					weeklySchedules = data.business_hours.weekly;
 				}
@@ -73,6 +75,8 @@
 				if (data.business_hours.outOfHours) {
 					outOfHoursConfig = data.business_hours.outOfHours;
 				}
+			} else {
+				is24Hours = true;
 			}
 		} catch (err: any) {
 			errorMessage = err.message || 'Gagal memuat konfigurasi jam operasional.';
@@ -86,6 +90,7 @@
 			errorMessage = '';
 			const updated = await saveJamOperasional({
 				business_hours: {
+					is24Hours,
 					weekly: weeklySchedules,
 					exceptions: scheduleExceptions,
 					outOfHours: outOfHoursConfig
@@ -94,6 +99,7 @@
 			});
 
 			if (updated.business_hours) {
+				is24Hours = updated.business_hours.is24Hours ?? false;
 				weeklySchedules = updated.business_hours.weekly;
 				scheduleExceptions = updated.business_hours.exceptions || [];
 				outOfHoursConfig = updated.business_hours.outOfHours;
@@ -182,6 +188,7 @@
 			<!-- Left Column: Weekly Schedule Card (7 Days) -->
 			<WeeklyScheduleCard
 				bind:schedules={weeklySchedules}
+				bind:is24Hours
 				onSave={handleSaveWeekly}
 			/>
 

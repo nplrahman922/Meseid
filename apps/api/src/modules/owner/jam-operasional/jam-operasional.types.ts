@@ -22,6 +22,7 @@ export interface OutOfHoursConfig {
 }
 
 export interface BusinessHoursData {
+  is24Hours?: boolean;
   weekly: DayScheduleConfig[];
   exceptions: ScheduleExceptionConfig[];
   outOfHours: OutOfHoursConfig;
@@ -52,6 +53,7 @@ export const DEFAULT_WEEKLY_SCHEDULE: DayScheduleConfig[] = [
 
 export function getDefaultBusinessHours(businessName: string = "toko kami"): BusinessHoursData {
   return {
+    is24Hours: true,
     weekly: DEFAULT_WEEKLY_SCHEDULE,
     exceptions: [],
     outOfHours: {

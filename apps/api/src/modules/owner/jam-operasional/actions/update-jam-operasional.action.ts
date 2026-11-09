@@ -44,6 +44,7 @@ export async function updateJamOperasional(
   };
 
   const cleanBusinessHours: BusinessHoursData = {
+    is24Hours: Boolean(input.business_hours?.is24Hours),
     weekly,
     exceptions,
     outOfHours,

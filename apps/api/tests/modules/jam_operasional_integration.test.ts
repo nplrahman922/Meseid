@@ -61,4 +61,9 @@ describe("Jam Operasional & Operating Hours Evaluator Tests", () => {
     const { ChatPersister } = require("../../src/modules/chat/pipeline/chat-persister");
     expect(typeof ChatPersister.persistInboundSuccess).toBe("function");
   });
+
+  it("7. getDefaultBusinessHours defaults to is24Hours: true", () => {
+    const defaults = getDefaultBusinessHours("Warung Sederhana");
+    expect(defaults.is24Hours).toBe(true);
+  });
 });
