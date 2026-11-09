@@ -36,6 +36,12 @@ export class ScheduleOrchestrator {
     message: string
   ): Promise<{ handled: boolean; replyText?: string }> {
     const normalized = message.trim().toLowerCase();
+
+    // Jika pesan mengandung perintah aksi eksplisit (seperti batalkan jadwal...), serahkan ke handleOwnerIntent
+    if (/(hapus jadwal|batalkan jadwal|cancel jadwal|batalin jadwal|delete jadwal|jadwalkan|agendakan|bikin jadwal)/i.test(message)) {
+      return { handled: false };
+    }
+
     const isYes = /^(ya|iya|y|oke|ok|siap|konfirmasi|setuju|simpan|yes|deal|lanjutkan|benar|betul)\b/i.test(normalized);
     const isNo = /^(batal|batalkan|jangan|tidak|nggak|gak|batalin|cancel|no|bukan)\b/i.test(normalized);
 
@@ -79,7 +85,7 @@ export class ScheduleOrchestrator {
 
       // Owner menjawab "Ya" / Konfirmasi
       if (action.type === "create_schedule") {
-        const payload = action.payload;
+        const payload = typeof action.payload === "string" ? JSON.parse(action.payload) : action.payload;
         try {
           await createScheduleAction(tx, owner.owner_id, {
             title: payload.title,
@@ -109,7 +115,7 @@ export class ScheduleOrchestrator {
       }
 
       if (action.type === "delete_schedule") {
-        const payload = action.payload;
+        const payload = typeof action.payload === "string" ? JSON.parse(action.payload) : action.payload;
         try {
           await deleteScheduleAction(tx, owner.owner_id, payload.schedule_id);
 
@@ -172,7 +178,7 @@ export class ScheduleOrchestrator {
           VALUES (
             ${owner.owner_id},
             'delete_schedule',
-            ${JSON.stringify({ schedule_id: s.id, title: s.title, start_at: s.start_at, end_at: s.end_at })},
+            ${{ schedule_id: s.id, title: s.title, start_at: s.start_at, end_at: s.end_at }},
             'pending',
             now() + interval '15 minutes'
           );
@@ -212,7 +218,7 @@ export class ScheduleOrchestrator {
         VALUES (
           ${owner.owner_id},
           'create_schedule',
-          ${JSON.stringify({ title: parsed.extractedTitle, start_at: parsed.startAt, end_at: parsed.endAt, source: 'chat' })},
+          ${{ title: parsed.extractedTitle, start_at: parsed.startAt, end_at: parsed.endAt, source: 'chat' }},
           'pending',
           now() + interval '15 minutes'
         );
