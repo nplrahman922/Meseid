@@ -22,12 +22,13 @@ export async function fetchJamOperasional(): Promise<JamOperasionalData> {
 			throw new Error(errJson.message || 'Gagal memuat konfigurasi jam operasional.');
 		}
 
-		const json: ApiResponse<JamOperasionalData> = await res.json();
-		if (!json.data) {
+		const json = await res.json();
+		const result: JamOperasionalData | undefined = json.data ?? (json.business_hours ? json : undefined);
+		if (!result) {
 			throw new Error('Data jam operasional kosong dari server.');
 		}
 
-		return json.data;
+		return result;
 	} catch (err) {
 		console.error('[JAM_OPERASIONAL_API] fetchJamOperasional error:', err);
 		throw err;
@@ -56,12 +57,13 @@ export async function saveJamOperasional(
 			throw new Error(errJson.message || 'Gagal menyimpan konfigurasi jam operasional.');
 		}
 
-		const json: ApiResponse<JamOperasionalData> = await res.json();
-		if (!json.data) {
+		const json = await res.json();
+		const result: JamOperasionalData | undefined = json.data ?? (json.business_hours ? json : undefined);
+		if (!result) {
 			throw new Error('Gagal memperbarui konfigurasi di server.');
 		}
 
-		return json.data;
+		return result;
 	} catch (err) {
 		console.error('[JAM_OPERASIONAL_API] saveJamOperasional error:', err);
 		throw err;

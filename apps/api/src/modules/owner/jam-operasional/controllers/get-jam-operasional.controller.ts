@@ -20,13 +20,16 @@ export async function getJamOperasionalController({
     });
 
     if (!data) {
-      set.status = 404;
-      return errorResponse("Profil bisnis owner tidak ditemukan");
+      return errorResponse(set, "NOT_FOUND", "Profil bisnis owner tidak ditemukan", 404);
     }
 
-    return successResponse("Berhasil memuat konfigurasi jam operasional", data);
+    return successResponse({ data }, "Berhasil memuat konfigurasi jam operasional");
   } catch (err: any) {
-    set.status = 500;
-    return errorResponse(`Gagal memuat jam operasional: ${err.message}`);
+    return errorResponse(
+      set,
+      "FETCH_FAILED",
+      `Gagal memuat jam operasional: ${err.message}`,
+      500
+    );
   }
 }

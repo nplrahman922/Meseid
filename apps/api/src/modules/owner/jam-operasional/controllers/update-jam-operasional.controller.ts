@@ -19,17 +19,20 @@ export async function updateJamOperasionalController({
 }) {
   try {
     if (!body || !body.business_hours) {
-      set.status = 400;
-      return errorResponse("Payload business_hours wajib diisi");
+      return errorResponse(set, "BAD_REQUEST", "Payload business_hours wajib diisi", 400);
     }
 
     const updated = await runOwnerTx(async (tx) => {
       return await updateJamOperasional(tx, owner.id, body);
     });
 
-    return successResponse("Berhasil memperbarui konfigurasi jam operasional", updated);
+    return successResponse({ data: updated }, "Berhasil memperbarui konfigurasi jam operasional");
   } catch (err: any) {
-    set.status = 500;
-    return errorResponse(`Gagal memperbarui jam operasional: ${err.message}`);
+    return errorResponse(
+      set,
+      "UPDATE_FAILED",
+      `Gagal memperbarui jam operasional: ${err.message}`,
+      500
+    );
   }
 }
