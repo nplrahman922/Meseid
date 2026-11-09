@@ -145,10 +145,18 @@ export class OperatingHoursEvaluator {
         const { dateStr, dayId, timeStr } = this.getLocalTimeParts(date, timezone);
 
         const rawHours = botConfig?.business_hours;
-        const businessHours: BusinessHoursData =
-          rawHours && typeof rawHours === "object" && Array.isArray(rawHours.weekly) && rawHours.weekly.length > 0
-            ? rawHours
-            : getDefaultBusinessHours(ownerRow.business_name);
+
+        // Jika pemilik usaha belum pernah menyetel jam operasional di database, toko buka 24 jam penuh
+        if (
+          !rawHours ||
+          typeof rawHours !== "object" ||
+          !Array.isArray(rawHours.weekly) ||
+          rawHours.weekly.length === 0
+        ) {
+          return { isClosed: false, shouldIntercept: false };
+        }
+
+        const businessHours: BusinessHoursData = rawHours;
 
         let isClosed = false;
         let closedReason = "";

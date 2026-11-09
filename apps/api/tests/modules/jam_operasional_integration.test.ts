@@ -44,4 +44,16 @@ describe("Jam Operasional & Operating Hours Evaluator Tests", () => {
     expect(res.isClosed).toBe(false);
     expect(res.shouldIntercept).toBe(false);
   });
+
+  it("5. OperatingHoursEvaluator treats unconfigured business_hours (empty {}) as open 24/7", async () => {
+    // Non-existent owner or unconfigured business_hours returns isClosed: false
+    const res = await OperatingHoursEvaluator.evaluate(
+      "00000000-0000-0000-0000-000000000099",
+      false, // customer
+      "admin"
+    );
+
+    expect(res.isClosed).toBe(false);
+    expect(res.shouldIntercept).toBe(false);
+  });
 });
