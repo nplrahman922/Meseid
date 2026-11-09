@@ -13,7 +13,7 @@ import { PresetResolver } from "./pipeline/preset-resolver";
 import { AudioTranscriber } from "../../adapters/ai/audio/audio-transcriber";
 import { AccessGate } from "./pipeline/access-gate";
 import { OperatingHoursEvaluator } from "./pipeline/operating-hours.evaluator";
-import { ScheduleOrchestrator } from "./pipeline/schedule-orchestrator";
+import { SchedulePersister } from "./pipeline/schedule-persister";
 
 const chatLogger = createModuleLogger("chat-service");
 
@@ -192,39 +192,6 @@ export class ChatService {
       };
     }
 
-    // 6.1 Jalur Penjadwalan: Konfirmasi & Manajemen Agenda / Booking (Google Calendar)
-    if (isOwner) {
-      // Prioritas 1: Periksa apakah pesan adalah jawaban konfirmasi atas draf jadwal (Ya/Batal)
-      const confirmResult = await ScheduleOrchestrator.handleOwnerConfirmation(owner, userMessage);
-      if (confirmResult.handled && confirmResult.replyText) {
-        await ChatPersister.persistInboundSuccess(payload, owner, confirmResult.replyText);
-        return {
-          status: "success",
-          reply_text: confirmResult.replyText,
-        };
-      }
-
-      // Prioritas 2: Periksa apakah pesan meminta membuat / menghapus agenda jadwal
-      const ownerSchedResult = await ScheduleOrchestrator.handleOwnerIntent(owner, userMessage);
-      if (ownerSchedResult.handled && ownerSchedResult.replyText) {
-        await ChatPersister.persistInboundSuccess(payload, owner, ownerSchedResult.replyText);
-        return {
-          status: "success",
-          reply_text: ownerSchedResult.replyText,
-        };
-      }
-    } else {
-      // Untuk Pelanggan (Admin Persona): Deteksi permintaan booking / reservasi
-      const bookingResult = await ScheduleOrchestrator.handleCustomerBooking(owner, payload, userMessage);
-      if (bookingResult.handled && bookingResult.replyText) {
-        await ChatPersister.persistInboundSuccess(payload, owner, bookingResult.replyText);
-        return {
-          status: "success",
-          reply_text: bookingResult.replyText,
-        };
-      }
-    }
-
     // 7. Muat Konteks Knowledge Base & Persona
     const chatContext = await ContextLoader.loadChatContext(owner, isOwner);
 
@@ -275,9 +242,10 @@ export class ChatService {
     finalReply = aiAdapter.sanitizeRawAiReply(finalReply);
     finalReply = aiAdapter.styleChatReply(finalReply, payload.channel);
 
-    // 10. Pembukuan Transaksi Keuangan (Hanya untuk Asisten Internal)
+    // 10. Pembukuan Transaksi Keuangan & Penjadwalan Kalender (MCP Tool Actions)
     try {
       await BookkeepingPersister.persistTransactions(owner, payload, persona, aiResult);
+      await SchedulePersister.persistSchedule(owner, payload, persona, isOwner, aiResult);
 
       // 11. Simpan Balasan AI & Chat Logs
       await ChatPersister.persistAssistantResponse({

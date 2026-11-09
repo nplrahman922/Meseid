@@ -37,13 +37,15 @@ export class ScheduleOrchestrator {
   ): Promise<{ handled: boolean; replyText?: string }> {
     const normalized = message.trim().toLowerCase();
 
-    // Jika pesan mengandung perintah aksi eksplisit (seperti batalkan jadwal...), serahkan ke handleOwnerIntent
-    if (/(hapus jadwal|batalkan jadwal|cancel jadwal|batalin jadwal|delete jadwal|jadwalkan|agendakan|bikin jadwal)/i.test(message)) {
-      return { handled: false };
+    // Jika pesan mengandung perintah aksi penjadwalan eksplisit, serahkan ke handleOwnerIntent
+    if (/(hapus jadwal|batalkan jadwal|cancel jadwal|batalin jadwal|delete jadwal|jadwalkan|agendakan|bikin jadwal|atur jadwal|buat jadwal|booking|pesan jadwal)/i.test(message)) {
+      if (!/^(batal|batalkan|cancel|batalin)[.!]?$/i.test(normalized)) {
+        return { handled: false };
+      }
     }
 
-    const isYes = /^(ya|iya|y|oke|ok|siap|konfirmasi|setuju|simpan|yes|deal|lanjutkan|benar|betul)\b/i.test(normalized);
-    const isNo = /^(batal|batalkan|jangan|tidak|nggak|gak|batalin|cancel|no|bukan)\b/i.test(normalized);
+    const isYes = /^(ya|iya|y|oke|ok|siap|siap bos|konfirmasi|setuju|simpan|yes|deal|lanjutkan|benar|betul|ok simpan|ya simpan)[.!]?$/i.test(normalized);
+    const isNo = /^(batal|batalkan|jangan|tidak|nggak|gak|batalin|cancel|no|bukan)[.!]?$/i.test(normalized);
 
     if (!isYes && !isNo) {
       return { handled: false };
@@ -107,6 +109,7 @@ export class ScheduleOrchestrator {
             replyText: `✅ *Jadwal Berhasil Dikonfirmasi & Disimpan!*\n\n• Acara: ${payload.title}\n• Waktu: ${rangeStr}\n\nAgenda telah masuk ke Google Calendar dan jadwal usaha Anda. 👍`,
           };
         } catch (err: any) {
+          schedLogger.error("Gagal mengeksekusi createScheduleAction dari pending action", err);
           return {
             handled: true,
             replyText: `⚠️ *Gagal Menyimpan Jadwal*: ${err.message}`,
@@ -130,6 +133,7 @@ export class ScheduleOrchestrator {
             replyText: `✅ *Jadwal Berhasil Dihapus!*\n\nAgenda "${payload.title}" telah dibatalkan dari Google Calendar dan kalender usaha Anda.`,
           };
         } catch (err: any) {
+          schedLogger.error("Gagal mengeksekusi deleteScheduleAction dari pending action", err);
           return {
             handled: true,
             replyText: `⚠️ *Gagal Menghapus Jadwal*: ${err.message}`,
@@ -149,7 +153,21 @@ export class ScheduleOrchestrator {
     message: string
   ): Promise<{ handled: boolean; replyText?: string }> {
     const isDelete = /(hapus jadwal|batalkan jadwal|cancel jadwal|batalin jadwal|delete jadwal)/i.test(message);
-    const isCreate = /(jadwalkan|agendakan|bikin jadwal|atur jadwal|buat jadwal|tambah jadwal)\b/i.test(message);
+    const hasCreateKeyword = /(jadwalkan|agendakan|bikin jadwal|atur jadwal|buat jadwal|tambah jadwal|booking\s*kan|booking|pesan jadwal|catat jadwal|masukkan jadwal|bikin janji|buat janji|atur janji|tambah agenda|buat agenda|atur agenda|mau jadwal|mau booking|jadwal baru)\b/i.test(message);
+
+    // Cek apakah pesan berisi waktu spesifik
+    const parsed = ScheduleTimeParser.parseDateTimeRange(message);
+
+    // Cek apakah pesan mengindikasikan transaksi keuangan / kas
+    const hasFinancialKeyword = /(beli|jual|bayar|ongkir|modal|gaji|uang|kas|transfer|lunas|bon|nota|rp|ribu|\b\d+k\b|\b\d+rb\b|\b\d{4,}\b)/i.test(message);
+
+    // Validasi create: keyword eksplisit ATAU ada parsed time range valid tanpa unsur keuangan
+    const isCreate =
+      hasCreateKeyword ||
+      (parsed !== null &&
+        !hasFinancialKeyword &&
+        (/(tujuan|acara|agenda|meeting|rapat|ketemu|janji|konsultasi|evaluasi|interview|tes|test|jadwal|kegiatan|zoom|gmeet|webinar)/i.test(message) ||
+          /^(besok|lusa|hari ini|nanti|senin|selasa|rabu|kamis|jumat|sabtu|minggu|jam|pukul)\b/i.test(message.trim())));
 
     if (!isDelete && !isCreate) {
       return { handled: false };
@@ -191,12 +209,11 @@ export class ScheduleOrchestrator {
         };
       }
 
-      // Pembuatan Jadwal Baru: Parse waktu dan judul
-      const parsed = ScheduleTimeParser.parseDateTimeRange(message);
+      // Pembuatan Jadwal Baru: Pastikan waktu terdeteksi
       if (!parsed) {
         return {
           handled: true,
-          replyText: "Mohon maaf Bos, tanggal atau jam agendanya belum terdeteksi jelas. Contoh: *'Jadwalkan rapat evaluasi besok jam 14.00'*. Mohon ketik kembali ya Bos.",
+          replyText: "Siap Bos! Tanggal atau jam agendanya belum terdeteksi jelas. Contoh: *'Jadwalkan rapat evaluasi besok jam 14.00'* atau *'Booking besok jam 11 pagi dengan tujuan tes'*. Silakan ketik detail waktunya ya Bos.",
         };
       }
 

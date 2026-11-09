@@ -4,7 +4,7 @@ import { JsonParser } from '../parser/json-parser';
 import { PersonaPromptBuilder } from '../prompt/persona-prompt.builder';
 import { ChatStylerFormatter } from '../formatter/chat-styler.formatter';
 import { modelProfilesRegistry } from '../eval/model-profiles.registry';
-import type { AiExtractionResult, AiTransactionItem, BusinessContext } from '../types';
+import type { AiExtractionResult, AiTransactionItem, AiScheduleItem, BusinessContext } from '../types';
 
 const aiLogger = createModuleLogger('ai-chat-extractor');
 
@@ -101,6 +101,7 @@ export async function extractChatResponse(
         summary: 'Percakapan pengguna',
         transaction: null,
         transactions: [],
+        schedule: null,
         model_used: chatRes.model,
         attempts: chatRes.attempts || 1,
         latency_ms: latencyMs,
@@ -135,6 +136,7 @@ export async function extractChatResponse(
         summary: 'Percakapan pengguna',
         transaction: null,
         transactions: [],
+        schedule: null,
         model_used: chatRes.model,
         attempts: chatRes.attempts || 1,
         latency_ms: latencyMs,
@@ -184,8 +186,30 @@ export async function extractChatResponse(
       singleTransaction = transactionItems[0];
     }
 
-    const validIntents = ['expense', 'income', 'inquiry', 'general'];
-    const resolvedIntent = (parsed && validIntents.includes(parsed.intent)) ? parsed.intent : 'general';
+    let scheduleItem: AiScheduleItem | null = null;
+    if (
+      parsed.schedule &&
+      typeof parsed.schedule === 'object' &&
+      ['create', 'delete', 'none'].includes(parsed.schedule.action)
+    ) {
+      if (parsed.schedule.action === 'create' && parsed.schedule.start_at) {
+        scheduleItem = {
+          action: 'create',
+          title: String(parsed.schedule.title || 'Agenda Usaha'),
+          start_at: String(parsed.schedule.start_at),
+          end_at: parsed.schedule.end_at ? String(parsed.schedule.end_at) : undefined,
+          notes: parsed.schedule.notes ? String(parsed.schedule.notes) : undefined,
+        };
+      } else if (parsed.schedule.action === 'delete') {
+        scheduleItem = {
+          action: 'delete',
+          title: parsed.schedule.title ? String(parsed.schedule.title) : undefined,
+        };
+      }
+    }
+
+    const validIntents = ['expense', 'income', 'inquiry', 'schedule', 'general'];
+    const resolvedIntent = (parsed && validIntents.includes(parsed.intent)) ? parsed.intent : (scheduleItem ? 'schedule' : 'general');
     const validSentiments = ['positive', 'neutral', 'negative'];
     const resolvedSentiment = (parsed && validSentiments.includes(parsed.sentiment)) ? parsed.sentiment : 'neutral';
     const resolvedSummary = (parsed && typeof parsed.summary === 'string') ? parsed.summary : 'Percakapan pengguna';
@@ -197,6 +221,7 @@ export async function extractChatResponse(
       summary: resolvedSummary,
       transaction: singleTransaction,
       transactions: transactionItems,
+      schedule: scheduleItem,
       model_used: chatRes.model,
       attempts: chatRes.attempts || 1,
       latency_ms: latencyMs,
