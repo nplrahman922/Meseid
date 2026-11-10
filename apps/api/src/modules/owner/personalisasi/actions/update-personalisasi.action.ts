@@ -18,6 +18,7 @@ export async function updatePersonalisasi(
   const allowedContacts = input.allowed_contacts ? JSON.stringify(input.allowed_contacts) : null;
   const allowedGroups = input.allowed_groups ? JSON.stringify(input.allowed_groups) : null;
   const businessHours = input.business_hours ? JSON.stringify(input.business_hours) : null;
+  const bannedWords = input.banned_words ? JSON.stringify(input.banned_words) : null;
 
   const [row] = await tx<BotConfigRecord[]>`
     INSERT INTO bot_configs (
@@ -36,7 +37,9 @@ export async function updatePersonalisasi(
       allowed_contacts,
       allowed_groups,
       auto_reply_enabled,
-      business_hours
+      business_hours,
+      banned_words,
+      group_moderation_enabled
     )
     VALUES (
       ${ownerId}::uuid,
@@ -54,7 +57,9 @@ export async function updatePersonalisasi(
       COALESCE(${allowedContacts}::jsonb, '[]'::jsonb),
       COALESCE(${allowedGroups}::jsonb, '[]'::jsonb),
       COALESCE(${input.auto_reply_enabled !== undefined ? input.auto_reply_enabled : null}, true),
-      COALESCE(${businessHours}::jsonb, '{}'::jsonb)
+      COALESCE(${businessHours}::jsonb, '{}'::jsonb),
+      COALESCE(${bannedWords}::jsonb, '[]'::jsonb),
+      COALESCE(${input.group_moderation_enabled !== undefined ? input.group_moderation_enabled : null}, true)
     )
     ON CONFLICT (owner_id) DO UPDATE
     SET assistant_bot_name = COALESCE(${input.assistant_bot_name || null}, bot_configs.assistant_bot_name),
@@ -72,12 +77,15 @@ export async function updatePersonalisasi(
         allowed_groups = CASE WHEN ${input.allowed_groups !== undefined} THEN ${allowedGroups}::jsonb ELSE bot_configs.allowed_groups END,
         auto_reply_enabled = COALESCE(${input.auto_reply_enabled !== undefined ? input.auto_reply_enabled : null}, bot_configs.auto_reply_enabled),
         business_hours = CASE WHEN ${input.business_hours !== undefined} THEN ${businessHours}::jsonb ELSE bot_configs.business_hours END,
+        banned_words = CASE WHEN ${input.banned_words !== undefined} THEN ${bannedWords}::jsonb ELSE bot_configs.banned_words END,
+        group_moderation_enabled = COALESCE(${input.group_moderation_enabled !== undefined ? input.group_moderation_enabled : null}, bot_configs.group_moderation_enabled),
         updated_at = now()
     RETURNING id, owner_id, assistant_bot_name, assistant_persona_prompt, assistant_language,
               admin_bot_name, admin_persona_prompt, admin_language, persona_prompt,
               selected_model_id, assistant_model_id, admin_model_id,
               customer_access_mode, allowed_contacts,
               allowed_groups, auto_reply_enabled, business_hours,
+              banned_words, group_moderation_enabled,
               created_at, updated_at;
   `;
 

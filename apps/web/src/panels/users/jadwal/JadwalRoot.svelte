@@ -7,6 +7,7 @@
 	import RincianJadwalGrid from './components/RincianJadwalGrid.svelte';
 	import PermintaanPembeliSection from './components/PermintaanPembeliSection.svelte';
 	import AddScheduleModal from './components/AddScheduleModal.svelte';
+	import EventDetailModal from './components/EventDetailModal.svelte';
 	import type { CalendarViewMode, ConfirmedEvent, OrderInquiry, GoogleCalendarState } from './jadwal.types';
 	import {
 		fetchGoogleStatus,
@@ -25,14 +26,16 @@
 	}
 
 	let {
-		businessName = 'Warung Bu Rina',
+		businessName = 'Usaha Anda',
 		role = 'Owner',
-		dateText = '16 Oktober 2026, 10.00 WIB'
+		dateText = ''
 	}: Props = $props();
 
 	let currentViewMode = $state<CalendarViewMode>('bulan');
 	let toastMessage = $state('');
 	let isAddModalOpen = $state(false);
+	let isDetailModalOpen = $state(false);
+	let selectedEvent = $state<ConfirmedEvent | null>(null);
 	let isSyncing = $state(false);
 
 	let googleState = $state<GoogleCalendarState>({
@@ -61,8 +64,8 @@
 				fetchBookings().catch(() => []),
 			]);
 			googleState = gStatus;
-			if (scheds.length > 0) confirmedEvents = scheds;
-			if (inqs.length > 0) customerInquiries = inqs;
+			confirmedEvents = scheds;
+			customerInquiries = inqs;
 		} catch (err: any) {
 			console.error('Gagal memuat data jadwal:', err);
 		}
@@ -151,12 +154,18 @@
 	/>
 
 	<!-- 4. Monthly Calendar Card -->
-	<KalenderBulanCard onSelectDate={(day) => showToast(`Melihat jadwal untuk tanggal ${day}`)} />
+	<KalenderBulanCard
+		events={confirmedEvents}
+		onSelectDate={(dateStr) => showToast(`Melihat jadwal untuk tanggal ${dateStr}`)}
+	/>
 
 	<!-- 5. Schedule Details Grid -->
 	<RincianJadwalGrid
 		events={confirmedEvents}
-		onSelectEvent={(ev) => showToast(`Agenda: ${ev.title}`)}
+		onSelectEvent={(ev) => {
+			selectedEvent = ev;
+			isDetailModalOpen = true;
+		}}
 		onDeleteEvent={handleDeleteSchedule}
 	/>
 
@@ -171,6 +180,14 @@
 		isOpen={isAddModalOpen}
 		onClose={() => (isAddModalOpen = false)}
 		onSubmit={handleSaveNewSchedule}
+	/>
+
+	<!-- 8. Event Detail Modal -->
+	<EventDetailModal
+		isOpen={isDetailModalOpen}
+		event={selectedEvent}
+		onClose={() => (isDetailModalOpen = false)}
+		onDelete={handleDeleteSchedule}
 	/>
 
 	<!-- Floating Toast Feedback -->

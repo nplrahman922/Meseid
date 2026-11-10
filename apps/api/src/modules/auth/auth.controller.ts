@@ -42,7 +42,10 @@ export async function googleAuthRedirectController({
   headers: Record<string, string | undefined>;
 }) {
   const rawHost = (headers as any)?.["x-forwarded-host"] || (headers as any)?.["host"] || "";
-  const proto = (headers as any)?.["x-forwarded-proto"] || "http";
+  let proto = (headers as any)?.["x-forwarded-proto"] || "http";
+  if (rawHost.includes(".ts.net") || (headers as any)?.["x-forwarded-ssl"] === "on" || (headers as any)?.["front-end-https"] === "on") {
+    proto = "https";
+  }
   const host = rawHost;
   const requestOrigin = host ? `${proto}://${host}` : undefined;
 
@@ -238,7 +241,7 @@ export async function googleAuthCallbackController({
   if (userRole === "owner") {
     const isCompleted = isNewTenant ? false : (existingOwner?.onboarding_completed ?? false);
     if (stateReturnUrl) {
-      redirectTo = stateReturnUrl;
+      redirectTo = stateReturnUrl === "/jadwal" ? "/dashboard?tab=jadwal" : stateReturnUrl;
     } else if (!isCompleted && isBrowserHtmlRequest) {
       redirectTo = "/overview";
     }

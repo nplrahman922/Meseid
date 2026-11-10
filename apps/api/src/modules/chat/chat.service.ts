@@ -117,7 +117,6 @@ export class ChatService {
         };
       }
 
-      // Transkripsikan rekaman audio menjadi teks
       const transcript = await AudioTranscriber.transcribeAudio({
         audioBase64: audioAtt.data_base64,
         mimeType: audioAtt.mime_type,
@@ -147,7 +146,6 @@ export class ChatService {
       (a) => a.file_type === "photo" || a.mime_type?.startsWith("image/")
     );
     if (photoAtt) {
-      // Isolasi Keamanan: Pelanggan umum dilarang memicu pembukuan kas lewat foto
       if (!isOwner) {
         return {
           status: "success",
@@ -155,7 +153,6 @@ export class ChatService {
         };
       }
 
-      // Untuk Asisten Usaha: Pastikan model aktif mendukung Vision
       if (!preset.supports_vision) {
         return {
           status: "success",
@@ -262,10 +259,9 @@ export class ChatService {
       };
     }
 
-    // Layer Pertahanan Akhir: Sanitisasi raw AI reply & Formatter gaya chat (WhatsApp / Telegram)
+    // Layer Pertahanan Akhir: Sanitisasi raw AI reply & Mencegat halusinasi kalender / blok JSON liar
     finalReply = aiAdapter.sanitizeRawAiReply(finalReply);
 
-    // Mencegat halusinasi kalender atau blok JSON liar dari balasan AI generatif
     if (isOwner) {
       const schedIntercept = await ScheduleOrchestrator.interceptAiOutput(
         owner,

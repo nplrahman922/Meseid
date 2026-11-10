@@ -10,7 +10,7 @@
 	let { state, onSync, isSyncing = false }: Props = $props();
 
 	function connectGoogle() {
-		window.location.href = '/api/auth/google?features=calendar&returnUrl=/jadwal';
+		window.location.href = '/api/auth/google?features=calendar&returnUrl=/dashboard?tab=jadwal';
 	}
 </script>
 

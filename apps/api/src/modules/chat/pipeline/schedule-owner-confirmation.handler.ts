@@ -2,7 +2,10 @@ import { withOwnerContext } from "../../../db/client";
 import { createScheduleAction } from "../../owner/jadwal/actions/create-schedule.action";
 import { deleteScheduleAction } from "../../owner/jadwal/actions/delete-schedule.action";
 import { formatIndoDateRange } from "./schedule-format.util";
+import { createModuleLogger } from "../../../logs";
 import type { ChannelOwnerResolution } from "./owner-resolver";
+
+const confirmLogger = createModuleLogger("schedule-owner-confirmation");
 
 export class ScheduleOwnerConfirmationHandler {
   /**
@@ -13,8 +16,16 @@ export class ScheduleOwnerConfirmationHandler {
     message: string
   ): Promise<{ handled: boolean; replyText?: string }> {
     const normalized = message.trim().toLowerCase();
-    const isYes = /^(ya|iya|y|oke|ok|siap|konfirmasi|setuju|simpan|yes|deal|lanjutkan|benar|betul)\b/i.test(normalized);
-    const isNo = /^(batal|batalkan|jangan|tidak|nggak|gak|batalin|cancel|no|bukan)\b/i.test(normalized);
+
+    // Jika pesan mengandung perintah aksi penjadwalan eksplisit, serahkan ke handleOwnerIntent
+    if (/(hapus jadwal|batalkan jadwal|cancel jadwal|batalin jadwal|delete jadwal|jadwalkan|agendakan|bikin jadwal|atur jadwal|buat jadwal|booking|pesan jadwal)/i.test(message)) {
+      if (!/^(batal|batalkan|cancel|batalin)[.!]?$/i.test(normalized)) {
+        return { handled: false };
+      }
+    }
+
+    const isYes = /^(ya|iya|y|oke|ok|siap|siap bos|konfirmasi|setuju|simpan|yes|deal|lanjutkan|benar|betul|ok simpan|ya simpan)[.!]?$/i.test(normalized);
+    const isNo = /^(batal|batalkan|jangan|tidak|nggak|gak|batalin|cancel|no|bukan)[.!]?$/i.test(normalized);
 
     if (!isYes && !isNo) {
       return { handled: false };
@@ -54,9 +65,9 @@ export class ScheduleOwnerConfirmationHandler {
         };
       }
 
-      // Owner konfirmasi "Ya"
+      // Owner menjawab "Ya" / Konfirmasi
       if (action.type === "create_schedule") {
-        const payload = action.payload;
+        const payload = typeof action.payload === "string" ? JSON.parse(action.payload) : action.payload;
         try {
           await createScheduleAction(tx, owner.owner_id, {
             title: payload.title,
@@ -78,6 +89,7 @@ export class ScheduleOwnerConfirmationHandler {
             replyText: `✅ *Jadwal Berhasil Dikonfirmasi & Disimpan!*\n\n• Acara: ${payload.title}\n• Waktu: ${rangeStr}\n\nAgenda telah masuk ke Google Calendar dan jadwal usaha Anda. 👍`,
           };
         } catch (err: any) {
+          confirmLogger.error("Gagal menyimpan jadwal dari konfirmasi owner", err);
           return {
             handled: true,
             replyText: `⚠️ *Gagal Menyimpan Jadwal*: ${err.message}`,
@@ -86,7 +98,7 @@ export class ScheduleOwnerConfirmationHandler {
       }
 
       if (action.type === "delete_schedule") {
-        const payload = action.payload;
+        const payload = typeof action.payload === "string" ? JSON.parse(action.payload) : action.payload;
         try {
           await deleteScheduleAction(tx, owner.owner_id, payload.schedule_id);
 
@@ -101,6 +113,7 @@ export class ScheduleOwnerConfirmationHandler {
             replyText: `✅ *Jadwal Berhasil Dihapus!*\n\nAgenda "${payload.title}" telah dibatalkan dari Google Calendar dan kalender usaha Anda.`,
           };
         } catch (err: any) {
+          confirmLogger.error("Gagal menghapus jadwal dari konfirmasi owner", err);
           return {
             handled: true,
             replyText: `⚠️ *Gagal Menghapus Jadwal*: ${err.message}`,

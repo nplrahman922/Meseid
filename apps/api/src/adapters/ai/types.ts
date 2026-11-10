@@ -63,14 +63,14 @@ export interface AiTransactionItem {
 export interface AiScheduleItem {
   action: 'create' | 'delete' | 'inquiry' | 'none';
   title?: string;
-  start_at?: string;
+  start_at?: string; // ISO 8601 string dalam zona waktu WIB (+07:00)
   end_at?: string;
   notes?: string;
 }
 
 export interface AiExtractionResult {
   reply: string;
-  intent: 'expense' | 'income' | 'inquiry' | 'general';
+  intent: 'expense' | 'income' | 'inquiry' | 'schedule' | 'general';
   sentiment: 'positive' | 'neutral' | 'negative';
   summary: string;
   transaction: AiTransactionItem | null;

@@ -5,6 +5,7 @@
 	import TelegramCard from './components/TelegramCard.svelte';
 	import GoogleIntegrationCard from './components/GoogleIntegrationCard.svelte';
 	import AllowedContactsCard from './components/AllowedContactsCard.svelte';
+	import BannedWordsCard from './components/BannedWordsCard.svelte';
 	import ConnectionLogsCard from './components/ConnectionLogsCard.svelte';
 	import { fetchKanalStatus } from './kanal-bot.service';
 	import type { WhatsAppChannelState, TelegramChannelState } from './kanal.types';
@@ -139,6 +140,9 @@
 
 	<!-- Full-width Whitelist & Access Rights Card -->
 	<AllowedContactsCard />
+
+	<!-- Full-width Moderation & Banned Words Card -->
+	<BannedWordsCard />
 
 	<!-- Full-width Connection Audit Logs Card -->
 	<ConnectionLogsCard />

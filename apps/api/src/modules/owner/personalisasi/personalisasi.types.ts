@@ -26,6 +26,8 @@ export interface BotConfigRecord {
   allowed_contacts: any;
   allowed_groups: any;
   auto_reply_enabled: boolean;
+  banned_words?: string[];
+  group_moderation_enabled?: boolean;
   business_hours: any;
   created_at: Date;
   updated_at: Date;
@@ -53,5 +55,7 @@ export interface UpdatePersonalisasiInput {
   allowed_contacts?: any;
   allowed_groups?: any;
   auto_reply_enabled?: boolean;
+  banned_words?: string[];
+  group_moderation_enabled?: boolean;
   business_hours?: any;
 }
