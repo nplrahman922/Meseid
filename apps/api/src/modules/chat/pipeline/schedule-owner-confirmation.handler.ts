@@ -69,7 +69,7 @@ export class ScheduleOwnerConfirmationHandler {
       if (action.type === "create_schedule") {
         const payload = typeof action.payload === "string" ? JSON.parse(action.payload) : action.payload;
         try {
-          await createScheduleAction(tx, owner.owner_id, {
+          const created = await createScheduleAction(tx, owner.owner_id, {
             title: payload.title,
             start_at: payload.start_at,
             end_at: payload.end_at,
@@ -84,9 +84,13 @@ export class ScheduleOwnerConfirmationHandler {
           `;
 
           const rangeStr = formatIndoDateRange(payload.start_at, payload.end_at);
+          const syncNote = created.google_event_id
+            ? "\n\nAgenda resmi telah tersimpan di kalender usaha dan Google Calendar Anda. 👍"
+            : "\n\nAgenda tersimpan di kalender usaha Anda. (Catatan: Google Calendar menolak sinkronisasi karena izin belum lengkap. Silakan hubungkan ulang Google Calendar di dashboard web). 👍";
+
           return {
             handled: true,
-            replyText: `✅ *Jadwal Berhasil Dikonfirmasi & Disimpan!*\n\n• Acara: ${payload.title}\n• Waktu: ${rangeStr}\n\nAgenda telah masuk ke Google Calendar dan jadwal usaha Anda. 👍`,
+            replyText: `✅ *Jadwal Berhasil Dikonfirmasi & Disimpan!*\n\n• Acara: ${payload.title}\n• Waktu: ${rangeStr}${syncNote}`,
           };
         } catch (err: any) {
           confirmLogger.error("Gagal menyimpan jadwal dari konfirmasi owner", err);

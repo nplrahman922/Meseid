@@ -71,7 +71,10 @@ export async function googleAuthRedirectController({
 
   const extraScopes: string[] = [];
   if (query.features === "calendar" || query.scope?.includes("calendar")) {
-    extraScopes.push("https://www.googleapis.com/auth/calendar.events");
+    extraScopes.push(
+      "https://www.googleapis.com/auth/calendar",
+      "https://www.googleapis.com/auth/calendar.events"
+    );
   }
 
   const adapter = getGoogleOAuthAdapter();

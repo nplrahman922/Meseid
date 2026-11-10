@@ -33,13 +33,13 @@ describe("Schedule Integration & Parser Tests", () => {
     expect(parsed1).not.toBeNull();
     expect(parsed1?.extractedTitle?.toLowerCase()).toBe("test 3");
     const d1 = new Date(parsed1!.startAt);
-    expect(d1.getHours()).toBe(20);
+    expect((d1.getUTCHours() + 7) % 24).toBe(20);
 
     const parsed2 = ScheduleTimeParser.parseDateTimeRange("Besok jam 7 pagi tujuannya test 4", ref);
     expect(parsed2).not.toBeNull();
     expect(parsed2?.extractedTitle?.toLowerCase()).toBe("test 4");
     const d2 = new Date(parsed2!.startAt);
-    expect(d2.getHours()).toBe(7);
+    expect((d2.getUTCHours() + 7) % 24).toBe(7);
   });
 
   it("3. ScheduleTimeParser returns null when no time is specified", () => {
