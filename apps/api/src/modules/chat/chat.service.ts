@@ -264,6 +264,19 @@ export class ChatService {
 
     // Layer Pertahanan Akhir: Sanitisasi raw AI reply & Formatter gaya chat (WhatsApp / Telegram)
     finalReply = aiAdapter.sanitizeRawAiReply(finalReply);
+
+    // Mencegat halusinasi kalender atau blok JSON liar dari balasan AI generatif
+    if (isOwner) {
+      const schedIntercept = await ScheduleOrchestrator.interceptAiOutput(
+        owner,
+        finalReply,
+        userMessage
+      );
+      if (schedIntercept.intercepted) {
+        finalReply = schedIntercept.replyText;
+      }
+    }
+
     finalReply = aiAdapter.styleChatReply(finalReply, payload.channel);
 
     // 10. Pembukuan Transaksi Keuangan (Hanya untuk Asisten Internal)

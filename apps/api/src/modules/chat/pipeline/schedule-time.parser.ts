@@ -99,7 +99,8 @@ export class ScheduleTimeParser {
     let extractedTitle = text
       .replace(/(?:jadwalkan|jadwal|agendakan|bikin jadwal|atur jadwal|buat jadwal|booking|reservasi|janji temu)/gi, "")
       .replace(/(?:besok|lusa|hari ini|pukul|jam)\s*\d{1,2}(?:[:.]\d{2})?\s*(?:pagi|siang|sore|malam)?/gi, "")
-      .replace(/\b(?:dengan|untuk|pada|di)\b/gi, "")
+      .replace(/\b(?:tujuannya|tujuan|alasan|dengan|untuk|pada|di)\b/gi, "")
+      .replace(/\s+/g, " ")
       .trim();
 
     if (!extractedTitle || extractedTitle.length < 3) {

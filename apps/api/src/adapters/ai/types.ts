@@ -60,6 +60,14 @@ export interface AiTransactionItem {
   notes: string;
 }
 
+export interface AiScheduleItem {
+  action: 'create' | 'delete' | 'inquiry' | 'none';
+  title?: string;
+  start_at?: string;
+  end_at?: string;
+  notes?: string;
+}
+
 export interface AiExtractionResult {
   reply: string;
   intent: 'expense' | 'income' | 'inquiry' | 'general';
@@ -67,6 +75,7 @@ export interface AiExtractionResult {
   summary: string;
   transaction: AiTransactionItem | null;
   transactions?: AiTransactionItem[];
+  schedule?: AiScheduleItem | null;
   model_used: string;
   attempts: number;
   latency_ms: number;

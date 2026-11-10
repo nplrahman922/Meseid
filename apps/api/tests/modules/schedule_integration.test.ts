@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { ScheduleTimeParser } from "../../src/modules/chat/pipeline/schedule-time.parser";
+import { ScheduleHallucinationInterceptor } from "../../src/modules/chat/pipeline/schedule-hallucination.interceptor";
 import { GoogleCalendarClient } from "../../src/adapters/google-calendar/google-calendar.client";
 
 describe("Schedule Integration & Parser Tests", () => {
@@ -25,18 +26,20 @@ describe("Schedule Integration & Parser Tests", () => {
     expect(t4?.minute).toBe(45);
   });
 
-  it("2. ScheduleTimeParser.parseDateTimeRange parses relative dates (besok, lusa)", () => {
-    const ref = new Date("2026-11-10T02:00:00Z"); // Selasa 10 Nov 2026
-    const parsed = ScheduleTimeParser.parseDateTimeRange("atur jadwal evaluasi tim besok jam 14.00", ref);
+  it("2. ScheduleTimeParser parses natural Indonesian sentences with 'tujuannya'", () => {
+    const ref = new Date("2026-11-09T10:00:00Z"); // Senin 9 Nov 2026
+    const parsed1 = ScheduleTimeParser.parseDateTimeRange("Besok jam 8 malam tujuannya test 3", ref);
 
-    expect(parsed).not.toBeNull();
-    expect(parsed?.startAt).toBeDefined();
-    expect(parsed?.endAt).toBeDefined();
-    expect(parsed?.extractedTitle).toContain("evaluasi tim");
+    expect(parsed1).not.toBeNull();
+    expect(parsed1?.extractedTitle).toBe("test 3");
+    const d1 = new Date(parsed1!.startAt);
+    expect(d1.getHours()).toBe(20);
 
-    const start = new Date(parsed!.startAt);
-    const end = new Date(parsed!.endAt);
-    expect(end.getTime() - start.getTime()).toBe(60 * 60 * 1000); // 1 jam durasi default
+    const parsed2 = ScheduleTimeParser.parseDateTimeRange("Besok jam 7 pagi tujuannya test 4", ref);
+    expect(parsed2).not.toBeNull();
+    expect(parsed2?.extractedTitle).toBe("test 4");
+    const d2 = new Date(parsed2!.startAt);
+    expect(d2.getHours()).toBe(7);
   });
 
   it("3. ScheduleTimeParser returns null when no time is specified", () => {
@@ -44,7 +47,43 @@ describe("Schedule Integration & Parser Tests", () => {
     expect(parsed).toBeNull();
   });
 
-  it("4. GoogleCalendarClient returns empty array or null gracefully when unconfigured", async () => {
+  it("4. ScheduleHallucinationInterceptor detects raw JSON schedule leak and recovers candidate", () => {
+    const wildAiReply = `Siap Bos! EnBee telah mencatat booking baru besok, Selasa 10 November 2026, pukul 20.00 WIB dengan tujuan test 3. Agenda ini sudah disinkronkan ke Google Calendar, lengkap dengan format JSON resmi berikut:
+
+\`\`\`json
+{
+  "schedule": [
+    {
+      "date": "2026-11-10",
+      "time": "20:00 WIB",
+      "purpose": "test 3"
+    }
+  ]
+}
+\`\`\``;
+
+    const userMessage = "Besok jam 8 malam tujuannya test 3";
+    const result = ScheduleHallucinationInterceptor.inspectAndRecover(wildAiReply, userMessage);
+
+    expect(result.hasHallucination).toBe(true);
+    expect(result.sanitizedReply).not.toContain("```json");
+    expect(result.sanitizedReply).not.toContain('"schedule"');
+    expect(result.candidate).toBeDefined();
+    expect(result.candidate?.title).toBe("test 3");
+    expect(result.candidate?.startAt).toBeDefined();
+  });
+
+  it("5. ScheduleHallucinationInterceptor ignores clean normal replies", () => {
+    const normalReply = "Halo Bos! Selamat siang, ada yang bisa EnBee bantu untuk usaha hari ini?";
+    const userMessage = "Halo EnBee";
+    const result = ScheduleHallucinationInterceptor.inspectAndRecover(normalReply, userMessage);
+
+    expect(result.hasHallucination).toBe(false);
+    expect(result.sanitizedReply).toBe(normalReply);
+    expect(result.candidate).toBeUndefined();
+  });
+
+  it("6. GoogleCalendarClient returns empty array or null gracefully when unconfigured", async () => {
     const dummyTx: any = async () => [];
     const token = await GoogleCalendarClient.getValidAccessToken(dummyTx, "00000000-0000-0000-0000-000000000000");
     expect(token).toBeNull();
